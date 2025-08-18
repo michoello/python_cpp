@@ -16,16 +16,13 @@ pip install pybind11
 
 ## Installation
 ```
-cd listinvert
-
-python3 -m pip install -e .   # editable mode, good for dev
+python3 -m pip install -e .
 ```
 
 ## Usage
 
-In listinvert dir
 ```
-# Example
+# Run Example
 python3 examples/invert_cli.py 1 2 3 4 5
 
 # Tests
