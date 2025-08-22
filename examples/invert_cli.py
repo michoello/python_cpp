@@ -19,10 +19,11 @@ def main():
 
 
 def matrix_demo():
-    A = Matrix([
-        [1, 2, 3],
+    A = Matrix(rows = 2, cols = 3,
+      values=[
+        [1, 2, 4],
         [4, 5, 6]
-    ])
+      ])
     B = Matrix([
         [7, 8],
         [9, 10],
