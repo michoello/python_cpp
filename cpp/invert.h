@@ -26,6 +26,17 @@ public:
         }
     }
 
+    Matrix(int rows, int cols, const std::vector<double>& values)
+        : rows(rows), cols(cols), data(rows * cols) {
+        if (!values.empty() && values.size() != rows * cols) {
+            throw std::runtime_error("Wrong number of values");
+        }
+        if (!values.empty()) {
+            data = values;
+        }
+    }
+
+
     inline double& at(int r, int c) {
         return data[r * cols + c];
     }
