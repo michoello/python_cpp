@@ -1,7 +1,7 @@
-from setuptools import setup
-from setuptools import Extension
+from setuptools import setup, Extension
 import pybind11
 
+"""
 ext_modules = [
     Extension(
         'listinvert._listinvert',
@@ -11,6 +11,26 @@ ext_modules = [
         extra_compile_args=['-std=c++17'],
     ),
 ]
+"""
+
+
+
+ext_modules = [
+    Extension(
+        'listinvert._listinvert',
+        sources=[
+            "listinvert/bindings.cpp",
+            "listinvert/invert.cpp",       # include core cpp
+        ],
+        include_dirs=[
+            pybind11.get_include(),
+        ],
+        #extra_compile_args=["-O3", "-std=c++17"],
+        extra_compile_args=["-std=c++17"],
+    )
+]
+
+
 
 setup(
     name='listinvert',
@@ -19,3 +39,4 @@ setup(
     ext_modules=ext_modules,
     packages=['listinvert'],
 )
+
