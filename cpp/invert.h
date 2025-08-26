@@ -1,5 +1,6 @@
 #include <vector>
 #include <iostream>
+#include <random>
 
 std::vector<int> invert(const std::vector<int> &v);
 
@@ -24,6 +25,19 @@ public:
                 throw std::invalid_argument("All rows must have the same number of columns");
             data.insert(data.end(), row.begin(), row.end());
         }
+    }
+
+    void fill_uniform() {
+      // Random engine
+      static std::random_device rd;
+      static std::mt19937 gen(rd());
+
+      // Uniform distribution in [-1, 1]
+      std::uniform_real_distribution<double> dist(-1.0, 1.0);
+
+      for (auto& x : data) {
+          x = dist(gen);
+      }
     }
 
     Matrix(int rows, int cols, const std::vector<double>& values)
