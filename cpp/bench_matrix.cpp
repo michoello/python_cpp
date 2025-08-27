@@ -19,7 +19,7 @@ void benchmark_multiply() {
     A.fill_uniform();
     B.fill_uniform();
 
-    for (size_t i = 0; i < 10000; ++i) {
+    for (size_t i = 0; i < 5000; ++i) {
         A = A.multiply(B);
         if( i % 1000 == 0) {
             std::cout << i << "\n";

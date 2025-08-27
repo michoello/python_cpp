@@ -27,6 +27,7 @@ PYBIND11_MODULE(_listinvert, m) {
         })
         )
         .def("multiply", &Matrix::multiply)
+        .def("fill_uniform", &Matrix::fill_uniform)
         .def("value", &Matrix::value)
         .def("at", (double& (Matrix::*)(int,int)) &Matrix::at,
              py::return_value_policy::reference_internal,
