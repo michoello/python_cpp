@@ -5,3 +5,5 @@ build/
 output.log
 delme
 test_matrix
+bench_matrix
+
