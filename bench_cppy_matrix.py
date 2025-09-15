@@ -10,7 +10,7 @@ def benchmark(func):
     return end - start
 
 
-# Equivalent to your C++ benchmark_multiply
+# Equivalent to C++ benchmark_multiply
 def benchmark_multiply():
     A = Matrix(100, 100)
     B = Matrix(100, 100)

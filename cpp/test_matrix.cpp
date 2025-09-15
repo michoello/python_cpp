@@ -31,8 +31,74 @@ void test_random() {
 }
 
 
+template <typename T>
+void assertEqualVectors(const std::vector<std::vector<T>>& got,
+                        const std::vector<std::vector<T>>& expected,
+                        const char* msg = "")
+{
+    if (got == expected) {
+        return; // success
+    }
+
+    std::cerr << "Assertion failed";
+    if (msg && *msg) std::cerr << ": " << msg;
+    std::cerr << "\n";
+
+    std::cerr << "Expected:\n";
+    for (const auto& row : expected) {
+        std::cerr << "  { ";
+        for (const auto& val : row) std::cerr << val << " ";
+        std::cerr << "}\n";
+    }
+
+    std::cerr << "Got:\n";
+    for (const auto& row : got) {
+        std::cerr << "  { ";
+        for (const auto& val : row) std::cerr << val << " ";
+        std::cerr << "}\n";
+    }
+
+    std::exit(1);
+}
+
+
+
+void test_matmul() {
+
+    Matrix ma(2, 3, {1, 2, 3, 4, 5, 6});
+    Matrix mb(3, 4, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12});
+
+    DataBlock da(2, 3);
+    DataBlock db(3, 4);
+
+    da.SetVal(ma);
+    db.SetVal(mb);
+
+    // This works. But if we move SetVal calls above to after this MulBlock object
+    // declaration, then it stops working.
+    // TODO: fix it
+    MulBlock dc(da, db);
+
+    assertEqualVectors(da.GetVal().value(), {
+      {1, 2, 3},
+      {4, 5, 6},
+    });
+
+    dc.CalcVal();
+
+    assertEqualVectors(dc.GetVal().value(), {
+      { 38, 44, 50, 56 },
+      { 83, 98, 113, 128 },
+    });
+
+    std::cout << "MatMul test passed ✅\n";
+}
+
+
+
 
 int main() {
     test_multiply();
     test_random();
+    test_matmul();
 }

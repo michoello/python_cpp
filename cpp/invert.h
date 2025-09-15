@@ -8,12 +8,15 @@ class Matrix {
 public:
     int rows;
     int cols;
+
     std::vector<double> data;  // flat row-major storage
 
-    Matrix() : rows(0), cols(0) {}
+    Matrix() : rows(0), cols(0) {
+    }
 
     // Constructor with rows, cols (zero initialized)
     Matrix(int r, int c) : rows(r), cols(c), data(r * c, 0.0) {}
+
 
     // Constructor with values (nested vector)
     Matrix(const std::vector<std::vector<double>>& vals) {
@@ -89,3 +92,41 @@ public:
     }
 };
 
+
+class Block {
+protected:
+  Matrix val;
+
+public:
+  Block(int r, int c) : val(r, c) {
+  }
+
+  const Matrix& GetVal() const {
+    return val;
+  }
+};
+
+class DataBlock: public Block {
+public: 
+   DataBlock(int r, int c) : Block(r, c) {}
+   //void SetVal(const std::vector<std::vector<double>>& vals) {
+   void SetVal(const Matrix& m) {
+     // TODO: make set value method in matrix
+     val = m;
+   }
+};
+
+
+class MulBlock: public Block {
+protected:
+  std::vector<Block> args;
+public:
+  MulBlock(const Block& a1, const Block& a2) : Block(a1.GetVal().rows, a2.GetVal().cols) {
+    args.push_back(a1);
+    args.push_back(a2);
+  }
+
+  void CalcVal() {
+    val = args[0].GetVal().multiply(args[1].GetVal());
+  }
+};
