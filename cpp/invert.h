@@ -4,22 +4,22 @@
 
 std::vector<int> invert(const std::vector<int> &v);
 
+class Matrix;
+
+void multiply_matrix(const Matrix& a, const Matrix& b, Matrix* c);
+
+
 class Matrix {
 public:
     int rows;
     int cols;
-
     std::vector<double> data;  // flat row-major storage
-
-    Matrix() : rows(0), cols(0) {
-    }
 
     // Constructor with rows, cols (zero initialized)
     Matrix(int r, int c) : rows(r), cols(c), data(r * c, 0.0) {}
 
-
     // Constructor with values (nested vector)
-    Matrix(const std::vector<std::vector<double>>& vals) {
+    void set_data(const std::vector<std::vector<double>>& vals) {
         rows = vals.size();
         cols = vals.empty() ? 0 : vals[0].size();
         data.reserve(rows * cols);
@@ -43,16 +43,12 @@ public:
       }
     }
 
-    Matrix(int rows, int cols, const std::vector<double>& values)
-        : rows(rows), cols(cols), data(rows * cols) {
-        if (!values.empty() && values.size() != rows * cols) {
+    void set_data(const std::vector<double>& values) {
+        if (values.size() != rows * cols) {
             throw std::runtime_error("Wrong number of values");
         }
-        if (!values.empty()) {
-            data = values;
-        }
+        data = values;
     }
-
 
     inline double& at(int r, int c) {
         return data[r * cols + c];
@@ -63,20 +59,8 @@ public:
     }
 
     Matrix multiply(const Matrix& other) const {
-        if (cols != other.rows) {
-            throw std::invalid_argument("Matrix dimensions do not match for multiplication");
-        }
         Matrix result(rows, other.cols);
-
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < other.cols; j++) {
-                double sum = 0.0;
-                for (int k = 0; k < cols; k++) {
-                    sum += at(i, k) * other.at(k, j);
-                }
-                result.at(i, j) = sum;
-            }
-        }
+        ::multiply_matrix(*this, other, &result);
         return result;
     }
 
@@ -109,24 +93,23 @@ public:
 class DataBlock: public Block {
 public: 
    DataBlock(int r, int c) : Block(r, c) {}
-   //void SetVal(const std::vector<std::vector<double>>& vals) {
+    
    void SetVal(const Matrix& m) {
-     // TODO: make set value method in matrix
-     val = m;
+     val.set_data(m.data);
    }
 };
 
 
 class MulBlock: public Block {
 protected:
-  std::vector<Block> args;
+  std::vector<Block*> args;
 public:
-  MulBlock(const Block& a1, const Block& a2) : Block(a1.GetVal().rows, a2.GetVal().cols) {
+  MulBlock(Block* a1, Block* a2) : Block(a1->GetVal().rows, a2->GetVal().cols) {
     args.push_back(a1);
     args.push_back(a2);
   }
 
   void CalcVal() {
-    val = args[0].GetVal().multiply(args[1].GetVal());
+    multiply_matrix(args[0]->GetVal(), args[1]->GetVal(), &val);
   }
 };

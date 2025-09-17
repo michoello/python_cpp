@@ -3,8 +3,10 @@
 #include <iostream>
 
 void test_multiply() {
-    Matrix A(2, 2, {1, 2, 3, 4});
-    Matrix B(2, 2, {5, 6, 7, 8});
+    Matrix A(2, 2);
+    Matrix B(2, 2);
+    A.set_data({1, 2, 3, 4});
+    B.set_data({5, 6, 7, 8});
 
     Matrix C = A.multiply(B);
 
@@ -19,7 +21,7 @@ void test_multiply() {
 
 void test_random() {
     Matrix A(10, 15);
-    
+    A.fill_uniform();
     for(size_t r = 0; r < 10; ++r) {
         for(size_t c = 0; c < 15; ++c) {
            assert(A.at(r, c) <= 1);
@@ -65,19 +67,20 @@ void assertEqualVectors(const std::vector<std::vector<T>>& got,
 
 void test_matmul() {
 
-    Matrix ma(2, 3, {1, 2, 3, 4, 5, 6});
-    Matrix mb(3, 4, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12});
+    Matrix ma(2, 3);
+    ma.set_data({1, 2, 3, 4, 5, 6});
+    Matrix mb(3, 4);
+    mb.set_data({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12});
 
     DataBlock da(2, 3);
     DataBlock db(3, 4);
 
+
+    MulBlock dc(&da, &db);
+
     da.SetVal(ma);
     db.SetVal(mb);
 
-    // This works. But if we move SetVal calls above to after this MulBlock object
-    // declaration, then it stops working.
-    // TODO: fix it
-    MulBlock dc(da, db);
 
     assertEqualVectors(da.GetVal().value(), {
       {1, 2, 3},
