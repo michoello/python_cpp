@@ -98,10 +98,75 @@ void test_matmul() {
 }
 
 
+void test_sqrt_matrix() {
+    DataBlock da(2, 3);
+
+    SquareBlock dc(&da);
+    SquareBlock dc2(&dc);
+
+    Matrix ma(2, 3);
+    ma.set_data({1, 2, 3, 4, 5, 6});
+    da.SetVal(ma);
+
+    dc2.CalcVal();
+    assertEqualVectors(dc2.GetVal().value(), {
+      {1, 16, 81},
+      {256, 625, 1296},
+    });
+
+    // dc is also calculated
+    assertEqualVectors(dc.GetVal().value(), {
+      {1, 4, 9},
+      {16, 25, 36},
+    });
+
+    std::cout << "Sqrt matrix test passed ✅\n";
+}
+
+void test_sum_matrix() {
+    DataBlock da(2, 3);
+    DataBlock db(2, 3);
+    DataBlock dc(2, 3);
+
+
+    Matrix ma(2, 3);
+    ma.set_data({1, 2, 3, 4, 5, 6});
+    da.SetVal(ma);
+
+    Matrix mb(2, 3);
+    mb.set_data({4, 5, 6, 1, 2, 3 });
+    db.SetVal(mb);
+
+    Matrix mc(2, 3);
+    mc.set_data({1, 1, 1, 2, 2, 2});
+    dc.SetVal(mc);
+
+    SumBlock ds1(&da, &db);
+    SumBlock ds2(&ds1, &dc);
+
+
+    ds2.CalcVal();
+    assertEqualVectors(ds2.GetVal().value(), {
+      {6, 8, 10},
+      {7, 9, 11},
+    });
+
+    // ds1 is also calculated
+    assertEqualVectors(ds1.GetVal().value(), {
+      {5, 7, 9},
+      {5, 7, 9},
+    });
+
+    std::cout << "Sum matrix test passed ✅\n";
+}
+
+
 
 
 int main() {
     test_multiply();
     test_random();
     test_matmul();
+    test_sqrt_matrix();
+    test_sum_matrix();
 }

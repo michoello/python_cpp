@@ -7,6 +7,8 @@ std::vector<int> invert(const std::vector<int> &v);
 class Matrix;
 
 void multiply_matrix(const Matrix& a, const Matrix& b, Matrix* c);
+void sum_matrix(const Matrix& a, const Matrix& b, Matrix* c);
+
 
 
 class Matrix {
@@ -88,6 +90,12 @@ public:
   const Matrix& GetVal() const {
     return val;
   }
+
+  virtual void CalcVal() = 0;
+
+  Matrix& GetVal() {
+    return val;
+  }
 };
 
 class DataBlock: public Block {
@@ -96,6 +104,10 @@ public:
     
    void SetVal(const Matrix& m) {
      val.set_data(m.data);
+   }
+  
+   void CalcVal() override {
+      // nothing
    }
 };
 
@@ -109,7 +121,72 @@ public:
     args.push_back(a2);
   }
 
-  void CalcVal() {
+  void CalcVal() override {
+    args[0]->CalcVal();
+    args[1]->CalcVal();
     multiply_matrix(args[0]->GetVal(), args[1]->GetVal(), &val);
   }
 };
+
+
+class SumBlock: public Block {
+protected:
+  std::vector<Block*> args;
+public:
+  SumBlock(Block* a1, Block* a2) : Block(a1->GetVal().rows, a1->GetVal().cols) {
+    // TODO: check dimensions
+    args.push_back(a1);
+    args.push_back(a2);
+  }
+
+  void CalcVal() override {
+    args[0]->CalcVal();
+    args[1]->CalcVal();
+    sum_matrix(args[0]->GetVal(), args[1]->GetVal(), &val);
+  }
+};
+
+
+
+typedef double (*DifFu)(double);
+
+class Funcs {
+public:
+  static double square(double d) {
+    return d * d;
+  } 
+};
+
+class ElFunBlock: public Block {
+  Block *arg;
+
+  DifFu fu;
+
+public:
+  ElFunBlock(Block *a, DifFu f) : Block(a->GetVal().rows, a->GetVal().cols) {
+     arg = a;
+     fu = f; 
+  }
+
+  void CalcVal() {
+    arg->CalcVal();
+
+    const auto& in = arg->GetVal();
+    auto* out = &this->val;
+    for (int i = 0; i < in.rows; i++) {
+        for (int j = 0; j < in.cols; j++) {
+            out->at(i, j) = fu(in.at(i, j));
+        }
+    }
+  }
+};
+
+
+class SquareBlock: public ElFunBlock {
+  Block *arg;
+
+public:
+  SquareBlock(Block *a) : ElFunBlock(a, &Funcs::square) {
+  }
+};
+
