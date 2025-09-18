@@ -148,9 +148,6 @@ public:
 };
 
 
-
-// typedef double (*DifFu)(double);
-
 using DifFu = std::function<double(double)>;
 
 class Funcs {
@@ -210,4 +207,10 @@ public:
 };
 
 
+class DifBlock: public SumBlock {
+public:
+  // TODO: fix the memory leak here:
+  DifBlock(Block* a1, Block* a2) : SumBlock(a1, new MulElBlock(a2, -1)) {
+  }
+};
 

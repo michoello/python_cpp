@@ -160,6 +160,31 @@ void test_sum_matrix() {
 }
 
 
+void test_dif_matrix() {
+    DataBlock da(2, 3);
+    DataBlock db(2, 3);
+
+    Matrix ma(2, 3);
+    ma.set_data({1, 2, 3, 4, 5, 6});
+    da.SetVal(ma);
+
+    Matrix mb(2, 3);
+    mb.set_data({2, 3, 5, 8, 13, 21 });
+    db.SetVal(mb);
+
+    DifBlock dd(&db, &da); // db - da
+
+    dd.CalcVal();
+    assertEqualVectors(dd.GetVal().value(), {
+      {1, 1, 2},
+      {4, 8, 15},
+    });
+
+    std::cout << "Differences between 2 matrices test passed ✅\n";
+}
+
+
+
 void test_mul_el() {
     DataBlock da(2, 3);
 
@@ -196,4 +221,5 @@ int main() {
     test_sqrt_matrix();
     test_sum_matrix();
     test_mul_el();
+    test_dif_matrix();
 }
