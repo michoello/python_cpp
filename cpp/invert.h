@@ -1,6 +1,7 @@
 #include <vector>
 #include <iostream>
 #include <random>
+#include <functional>
 
 std::vector<int> invert(const std::vector<int> &v);
 
@@ -112,11 +113,11 @@ public:
 };
 
 
-class MulBlock: public Block {
+class MatMulBlock: public Block {
 protected:
   std::vector<Block*> args;
 public:
-  MulBlock(Block* a1, Block* a2) : Block(a1->GetVal().rows, a2->GetVal().cols) {
+  MatMulBlock(Block* a1, Block* a2) : Block(a1->GetVal().rows, a2->GetVal().cols) {
     args.push_back(a1);
     args.push_back(a2);
   }
@@ -148,13 +149,23 @@ public:
 
 
 
-typedef double (*DifFu)(double);
+// typedef double (*DifFu)(double);
+
+using DifFu = std::function<double(double)>;
 
 class Funcs {
 public:
   static double square(double d) {
     return d * d;
   } 
+
+  static DifFu get_mul_el(double n) {
+    return [n](double d) {
+      return n * d;
+    };
+  }
+  
+
 };
 
 class ElFunBlock: public Block {
@@ -181,12 +192,22 @@ public:
   }
 };
 
-
-class SquareBlock: public ElFunBlock {
+class SqrtBlock: public ElFunBlock {
   Block *arg;
 
 public:
-  SquareBlock(Block *a) : ElFunBlock(a, &Funcs::square) {
+  SqrtBlock(Block *a) : ElFunBlock(a, &Funcs::square) {
   }
 };
+
+
+class MulElBlock: public ElFunBlock {
+  Block *arg;
+
+public:
+  MulElBlock(Block *a, double n) : ElFunBlock(a, Funcs::get_mul_el(n)) {
+  }
+};
+
+
 

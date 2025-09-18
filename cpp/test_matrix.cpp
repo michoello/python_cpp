@@ -76,11 +76,10 @@ void test_matmul() {
     DataBlock db(3, 4);
 
 
-    MulBlock dc(&da, &db);
+    MatMulBlock dc(&da, &db);
 
     da.SetVal(ma);
     db.SetVal(mb);
-
 
     assertEqualVectors(da.GetVal().value(), {
       {1, 2, 3},
@@ -101,8 +100,8 @@ void test_matmul() {
 void test_sqrt_matrix() {
     DataBlock da(2, 3);
 
-    SquareBlock dc(&da);
-    SquareBlock dc2(&dc);
+    SqrtBlock dc(&da);
+    SqrtBlock dc2(&dc);
 
     Matrix ma(2, 3);
     ma.set_data({1, 2, 3, 4, 5, 6});
@@ -161,6 +160,33 @@ void test_sum_matrix() {
 }
 
 
+void test_mul_el() {
+    DataBlock da(2, 3);
+
+    Matrix ma(2, 3);
+    ma.set_data({1, 2, 3, 4, 5, 6});
+    da.SetVal(ma);
+
+    MulElBlock db(&da, 2);
+    MulElBlock dc(&db, -1);
+
+    dc.CalcVal();
+
+    assertEqualVectors(db.GetVal().value(), {
+      {2, 4, 6},
+      {8, 10, 12},
+    });
+
+    assertEqualVectors(dc.GetVal().value(), {
+      {-2, -4, -6},
+      {-8, -10, -12},
+    });
+
+    std::cout << "Mul el matrix test passed ✅\n";
+}
+
+
+
 
 
 int main() {
@@ -169,4 +195,5 @@ int main() {
     test_matmul();
     test_sqrt_matrix();
     test_sum_matrix();
+    test_mul_el();
 }
