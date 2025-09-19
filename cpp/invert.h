@@ -240,5 +240,14 @@ public:
   }
 };
 
+// Sum Square Error
+class SSEBlock: public SumBlock {
+public:
+  SSEBlock(Block *a, Block *b) : SumBlock(new SqrtBlock(new DifBlock(a, b))) {
+  }
+
+};
+
+
 
 

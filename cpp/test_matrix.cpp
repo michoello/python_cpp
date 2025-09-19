@@ -228,6 +228,31 @@ void test_sum_mat() {
 
 
 
+void test_sse() {
+    DataBlock da(2, 3);
+    Matrix ma(2, 3);
+    ma.set_data({1, 2, 3, 4, 5, 6});
+    da.SetVal(ma);
+
+    DataBlock db(2, 3);
+    Matrix mb(2, 3);
+    mb.set_data({1, 2, 4, 4, 5, 4});
+    db.SetVal(mb);
+
+
+    SSEBlock ds(&da, &db);
+
+    ds.CalcVal();
+
+    assertEqualVectors(ds.GetVal().value(), {
+      {5},
+    });
+
+    std::cout << "SSE matrix test passed ✅\n";
+}
+
+
+
 int main() {
     test_multiply();
     test_random();
@@ -237,4 +262,5 @@ int main() {
     test_mul_el();
     test_dif_matrix();
     test_sum_mat();
+    test_sse();
 }

@@ -26,7 +26,7 @@ void multiply_matrix(const Matrix& a, const Matrix& b, Matrix* c) {
 
 void sum_matrix(const Matrix& a, const Matrix& b, Matrix* c) {
     // TODO: that's not enough, add conditions
-    if (a.rows != b.rows || a.rows != c->rows || b.cols != c->cols) {
+    if (a.rows != b.rows || a.rows != c->rows || b.cols != c->cols || a.cols != b.cols) {
         throw std::invalid_argument("Matrix dimensions do not match for sum");
     }
     for (int i = 0; i < a.rows; i++) {
