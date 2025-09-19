@@ -122,7 +122,7 @@ void test_sqrt_matrix() {
     std::cout << "Sqrt matrix test passed ✅\n";
 }
 
-void test_sum_matrix() {
+void test_add_matrix() {
     DataBlock da(2, 3);
     DataBlock db(2, 3);
     DataBlock dc(2, 3);
@@ -140,8 +140,8 @@ void test_sum_matrix() {
     mc.set_data({1, 1, 1, 2, 2, 2});
     dc.SetVal(mc);
 
-    SumBlock ds1(&da, &db);
-    SumBlock ds2(&ds1, &dc);
+    AddBlock ds1(&da, &db);
+    AddBlock ds2(&ds1, &dc);
 
 
     ds2.CalcVal();
@@ -183,8 +183,6 @@ void test_dif_matrix() {
     std::cout << "Differences between 2 matrices test passed ✅\n";
 }
 
-
-
 void test_mul_el() {
     DataBlock da(2, 3);
 
@@ -210,7 +208,23 @@ void test_mul_el() {
     std::cout << "Mul el matrix test passed ✅\n";
 }
 
+void test_sum_mat() {
+    DataBlock da(2, 3);
 
+    Matrix ma(2, 3);
+    ma.set_data({1, 2, 3, 4, 5, 6});
+    da.SetVal(ma);
+
+    SumBlock ds(&da);
+
+    ds.CalcVal();
+
+    assertEqualVectors(ds.GetVal().value(), {
+      {21},
+    });
+
+    std::cout << "Sum matrix test passed ✅\n";
+}
 
 
 
@@ -219,7 +233,8 @@ int main() {
     test_random();
     test_matmul();
     test_sqrt_matrix();
-    test_sum_matrix();
+    test_add_matrix();
     test_mul_el();
     test_dif_matrix();
+    test_sum_mat();
 }

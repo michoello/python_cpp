@@ -130,11 +130,11 @@ public:
 };
 
 
-class SumBlock: public Block {
+class AddBlock: public Block {
 protected:
   std::vector<Block*> args;
 public:
-  SumBlock(Block* a1, Block* a2) : Block(a1->GetVal().rows, a1->GetVal().cols) {
+  AddBlock(Block* a1, Block* a2) : Block(a1->GetVal().rows, a1->GetVal().cols) {
     // TODO: check dimensions
     args.push_back(a1);
     args.push_back(a2);
@@ -189,6 +189,9 @@ public:
   }
 };
 
+
+
+
 class SqrtBlock: public ElFunBlock {
   Block *arg;
 
@@ -207,10 +210,35 @@ public:
 };
 
 
-class DifBlock: public SumBlock {
+class DifBlock: public AddBlock {
 public:
   // TODO: fix the memory leak here:
-  DifBlock(Block* a1, Block* a2) : SumBlock(a1, new MulElBlock(a2, -1)) {
+  DifBlock(Block* a1, Block* a2) : AddBlock(a1, new MulElBlock(a2, -1)) {
   }
 };
+
+
+class SumBlock: public Block {
+  Block *arg;
+
+public:
+  SumBlock(Block *a) : Block(1, 1) {
+     arg = a;
+  }
+
+  void CalcVal() {
+    arg->CalcVal();
+
+    const auto& in = arg->GetVal();
+    float s = 0.0;
+    for (int i = 0; i < in.rows; i++) {
+        for (int j = 0; j < in.cols; j++) {
+            s += in.at(i, j);
+        }
+    }
+    val.at(0, 0) = s;
+  }
+};
+
+
 
