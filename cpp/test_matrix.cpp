@@ -252,6 +252,48 @@ void test_sse() {
 }
 
 
+void test_sse2_with_derivatives() {
+    DataBlock dy(1, 2);
+    Matrix my(1, 2);
+    my.set_data({1, 2});  // true labels
+    dy.SetVal(my);
+
+    DataBlock dy1(1, 2);
+    Matrix my1(1, 2);
+    my1.set_data({0, 4});
+    dy1.SetVal(my1);
+
+
+    SSEBlock ds(&dy, &dy1);
+
+    ds.CalcVal();
+
+    assertEqualVectors(ds.GetVal().value(), {
+      {5},
+    });
+
+
+    // Calc derivatives
+    ds.CalcDval();
+
+    // Derivative of loss function is its value
+    assertEqualVectors(ds.GetDval().value(), {
+      {5},
+    });
+
+    // Derivative of its args
+    assertEqualVectors(dy.GetDval().value(), {
+      {-2, 4},
+    });
+
+    // TODO: apply gradient to input - y1 must become =[0.2,3.6] with learning rate 0.1
+    // TODO: check that it reduces the loss after recalculation - must become 3.2
+
+    std::cout << "SSE matrix test 2 passed ✅\n";
+}
+
+
+
 
 int main() {
     test_multiply();
@@ -263,4 +305,5 @@ int main() {
     test_dif_matrix();
     test_sum_mat();
     test_sse();
+    test_sse2_with_derivatives();
 }

@@ -82,20 +82,33 @@ public:
 
 class Block {
 protected:
-  Matrix val;
 
 public:
-  Block(int r, int c) : val(r, c) {
+  Matrix val;
+
+  Matrix dval;
+
+
+  Block(int r, int c) : val(r, c), dval(r, c) {
   }
 
   const Matrix& GetVal() const {
     return val;
   }
 
-  virtual void CalcVal() = 0;
-
   Matrix& GetVal() {
     return val;
+  }
+
+  virtual void CalcVal() = 0;
+  virtual void CalcDval() {}; // TODO = 0
+
+
+  Matrix& GetDval() {
+     return dval;
+  }
+  const Matrix& GetDval() const {
+     return dval;
   }
 };
 
@@ -242,11 +255,35 @@ public:
 
 // Sum Square Error
 class SSEBlock: public SumBlock {
+  Block *arg1;
+  Block *arg2;
+
 public:
   SSEBlock(Block *a, Block *b) : SumBlock(new SqrtBlock(new DifBlock(a, b))) {
+     arg1 = a;
+     arg2 = b;
   }
+  
+  void CalcDval() override {
+     dval = val;
+     auto* dblock =  new MulElBlock(new DifBlock(arg2, arg1), 2);
+     dblock->CalcVal();
+     arg1->dval = dblock->GetVal();
+  } 
+ 
+
+  /*
+  * TODO: implement this
+  void ApplyGrad() {
+     float learning_rate = 0.1;
+     auto* dblock =  new DifBlock(arg1->GetVal(), new MulElBlock(new DataBlock(arg1->GetDval()), learning_rate));
+     dblock->CalcVal();
+     arg1->val = dblock->GetVal();
+  }
+  */
 
 };
+
 
 
 
