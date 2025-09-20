@@ -2,6 +2,7 @@
 #include <iostream>
 #include <random>
 #include <functional>
+#include <memory>
 
 std::vector<int> invert(const std::vector<int> &v);
 
@@ -16,20 +17,20 @@ class Matrix {
 public:
     int rows;
     int cols;
-    std::vector<double> data;  // flat row-major storage
+    std::shared_ptr<std::vector<double>> data;  // flat row-major storage
 
     // Constructor with rows, cols (zero initialized)
-    Matrix(int r, int c) : rows(r), cols(c), data(r * c, 0.0) {}
+    Matrix(int r, int c) : rows(r), cols(c), data(std::make_shared<std::vector<double>>(r * c, 0.0)) {}
 
     // Constructor with values (nested vector)
     void set_data(const std::vector<std::vector<double>>& vals) {
         rows = vals.size();
         cols = vals.empty() ? 0 : vals[0].size();
-        data.reserve(rows * cols);
+        data->reserve(rows * cols);
         for (const auto& row : vals) {
             if ((int)row.size() != cols)
                 throw std::invalid_argument("All rows must have the same number of columns");
-            data.insert(data.end(), row.begin(), row.end());
+            data->insert(data->end(), row.begin(), row.end());
         }
     }
 
@@ -41,7 +42,7 @@ public:
       // Uniform distribution in [-1, 1]
       std::uniform_real_distribution<double> dist(-1.0, 1.0);
 
-      for (auto& x : data) {
+      for (auto& x : *data) {
           x = dist(gen);
       }
     }
@@ -50,15 +51,15 @@ public:
         if (values.size() != rows * cols) {
             throw std::runtime_error("Wrong number of values");
         }
-        data = values;
+        *data = values;
     }
 
     inline double& at(int r, int c) {
-        return data[r * cols + c];
+        return (*data)[r * cols + c];
     }
 
     inline const double& at(int r, int c) const {
-        return data[r * cols + c];
+        return (*data)[r * cols + c];
     }
 
     Matrix multiply(const Matrix& other) const {
@@ -85,7 +86,6 @@ protected:
 
 public:
   Matrix val;
-
   Matrix dval;
 
 
@@ -110,6 +110,17 @@ public:
   const Matrix& GetDval() const {
      return dval;
   }
+
+  void ApplyGrad(float learning_rate) {
+    for (int i = 0; i < val.rows; i++) {
+        for (int j = 0; j < val.cols; j++) {
+            val.at(i, j) += dval.at(i, j) * learning_rate;
+        }
+    }
+
+  }
+
+
 };
 
 class DataBlock: public Block {
@@ -117,7 +128,7 @@ public:
    DataBlock(int r, int c) : Block(r, c) {}
     
    void SetVal(const Matrix& m) {
-     val.set_data(m.data);
+     val.set_data(*m.data);
    }
   
    void CalcVal() override {
@@ -254,11 +265,13 @@ public:
 };
 
 // Sum Square Error
+// TODO: this inheritance is no good. Use composition instead.
 class SSEBlock: public SumBlock {
-  Block *arg1;
-  Block *arg2;
+  Block *arg1; // model output
+  Block *arg2; // labels 
 
 public:
+
   SSEBlock(Block *a, Block *b) : SumBlock(new SqrtBlock(new DifBlock(a, b))) {
      arg1 = a;
      arg2 = b;
@@ -270,17 +283,6 @@ public:
      dblock->CalcVal();
      arg1->dval = dblock->GetVal();
   } 
- 
-
-  /*
-  * TODO: implement this
-  void ApplyGrad() {
-     float learning_rate = 0.1;
-     auto* dblock =  new DifBlock(arg1->GetVal(), new MulElBlock(new DataBlock(arg1->GetDval()), learning_rate));
-     dblock->CalcVal();
-     arg1->val = dblock->GetVal();
-  }
-  */
 
 };
 

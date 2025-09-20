@@ -1,6 +1,12 @@
 #include "invert.h"
 #include <cassert>
 #include <iostream>
+#include <cmath>
+#include <iostream>
+#include <vector>
+#include <cstdlib>
+#include <type_traits>
+
 
 void test_multiply() {
     Matrix A(2, 2);
@@ -33,36 +39,66 @@ void test_random() {
 }
 
 
+
+template <typename T>
+bool approxEqual(T a, T b, double tol = 1e-3) {
+    if constexpr (std::is_floating_point_v<T>) {
+        return std::fabs(a - b) <= tol;
+    } else {
+        return a == b; // exact for integers
+    }
+}
+
 template <typename T>
 void assertEqualVectors(const std::vector<std::vector<T>>& got,
                         const std::vector<std::vector<T>>& expected,
-                        const char* msg = "")
+                        const char* msg = "",
+                        double tol = 1e-3)
 {
-    if (got == expected) {
-        return; // success
+    if (got.size() != expected.size()) {
+        std::cerr << "Assertion failed (different number of rows)";
+        if (msg && *msg) std::cerr << ": " << msg;
+        std::cerr << "\n";
+        std::exit(1);
     }
 
-    std::cerr << "Assertion failed";
-    if (msg && *msg) std::cerr << ": " << msg;
-    std::cerr << "\n";
+    for (size_t i = 0; i < got.size(); ++i) {
+        if (got[i].size() != expected[i].size()) {
+            std::cerr << "Assertion failed (different number of columns in row " << i << ")";
+            if (msg && *msg) std::cerr << ": " << msg;
+            std::cerr << "\n";
+            std::exit(1);
+        }
+        for (size_t j = 0; j < got[i].size(); ++j) {
+            if (!approxEqual(got[i][j], expected[i][j], tol)) {
+                std::cerr << "Assertion failed";
+                if (msg && *msg) std::cerr << ": " << msg;
+                std::cerr << "\n";
 
-    std::cerr << "Expected:\n";
-    for (const auto& row : expected) {
-        std::cerr << "  { ";
-        for (const auto& val : row) std::cerr << val << " ";
-        std::cerr << "}\n";
+                std::cerr << "Mismatch at (" << i << "," << j << "): "
+                          << "expected " << expected[i][j]
+                          << " but got " << got[i][j]
+                          << " (tolerance " << tol << ")\n";
+
+                std::cerr << "Expected:\n";
+                for (const auto& row : expected) {
+                    std::cerr << "  { ";
+                    for (const auto& val : row) std::cerr << val << " ";
+                    std::cerr << "}\n";
+                }
+
+                std::cerr << "Got:\n";
+                for (const auto& row : got) {
+                    std::cerr << "  { ";
+                    for (const auto& val : row) std::cerr << val << " ";
+                    std::cerr << "}\n";
+                }
+
+                std::exit(1);
+            }
+        }
     }
-
-    std::cerr << "Got:\n";
-    for (const auto& row : got) {
-        std::cerr << "  { ";
-        for (const auto& val : row) std::cerr << val << " ";
-        std::cerr << "}\n";
-    }
-
-    std::exit(1);
 }
-
 
 
 void test_matmul() {
@@ -252,19 +288,21 @@ void test_sse() {
 }
 
 
-void test_sse2_with_derivatives() {
+void test_sse_with_grads() {
+    // "output"
     DataBlock dy(1, 2);
     Matrix my(1, 2);
     my.set_data({1, 2});  // true labels
     dy.SetVal(my);
 
-    DataBlock dy1(1, 2);
-    Matrix my1(1, 2);
-    my1.set_data({0, 4});
-    dy1.SetVal(my1);
+    // "labels"
+    DataBlock dl(1, 2);
+    Matrix ml(1, 2);
+    ml.set_data({0, 4});
+    dl.SetVal(ml);
 
 
-    SSEBlock ds(&dy, &dy1);
+    SSEBlock ds(&dy, &dl);
 
     ds.CalcVal();
 
@@ -289,6 +327,22 @@ void test_sse2_with_derivatives() {
     // TODO: apply gradient to input - y1 must become =[0.2,3.6] with learning rate 0.1
     // TODO: check that it reduces the loss after recalculation - must become 3.2
 
+
+    dy.ApplyGrad(0.1);
+    assertEqualVectors(dy.GetVal().value(), {
+      {0.8, 2.4},
+    });
+
+    // Calc loss again
+    ds.CalcVal();
+
+    // Derivative of loss function is its value
+    assertEqualVectors(ds.GetDval().value(), {
+      {3.2},
+    });
+
+
+
     std::cout << "SSE matrix test 2 passed ✅\n";
 }
 
@@ -305,5 +359,5 @@ int main() {
     test_dif_matrix();
     test_sum_mat();
     test_sse();
-    test_sse2_with_derivatives();
+    test_sse_with_grads();
 }
