@@ -11,8 +11,6 @@ class Matrix;
 void multiply_matrix(const Matrix& a, const Matrix& b, Matrix* c);
 void sum_matrix(const Matrix& a, const Matrix& b, Matrix* c);
 
-
-
 class Matrix {
 public:
     int rows;
@@ -22,17 +20,31 @@ public:
     // Constructor with rows, cols (zero initialized)
     Matrix(int r, int c) : rows(r), cols(c), data(std::make_shared<std::vector<double>>(r * c, 0.0)) {}
 
+    Matrix(const Matrix& other) {
+       rows = other.rows;
+       cols = other.cols;
+       data = other.data;
+		}
+
     // Constructor with values (nested vector)
     void set_data(const std::vector<std::vector<double>>& vals) {
-        rows = vals.size();
-        cols = vals.empty() ? 0 : vals[0].size();
-        data->reserve(rows * cols);
-        for (const auto& row : vals) {
-            if ((int)row.size() != cols)
+        for (int r=0; r < vals.size(); ++r) {
+            if ((int)vals[r].size() != cols)
                 throw std::invalid_argument("All rows must have the same number of columns");
-            data->insert(data->end(), row.begin(), row.end());
+            for(int c=0; c < cols; ++c) {
+                at(r, c) = vals[r][c];
+            }
         }
     }
+
+    void print() const {
+       for (int r=0; r < rows; ++r) {
+          for(int c=0; c < cols; ++c) {
+              std::cout << at(r, c) << " ";
+          }
+          std::cout << "\n";
+       }
+		}
 
     void fill_uniform() {
       // Random engine
@@ -60,12 +72,6 @@ public:
 
     inline const double& at(int r, int c) const {
         return (*data)[r * cols + c];
-    }
-
-    Matrix multiply(const Matrix& other) const {
-        Matrix result(rows, other.cols);
-        ::multiply_matrix(*this, other, &result);
-        return result;
     }
 
     // Convert back to nested vector (Python list-of-lists)
@@ -102,7 +108,6 @@ public:
 
   virtual void CalcVal() = 0;
   virtual void CalcDval() {}; // TODO = 0
-
 
   Matrix& GetDval() {
      return dval;
@@ -185,7 +190,14 @@ public:
       return n * d;
     };
   }
-  
+
+  static void for_each_el(const Matrix& in, Matrix* out, DifFu fu) {
+    for (int i = 0; i < in.rows; i++) {
+        for (int j = 0; j < in.cols; j++) {
+            out->at(i, j) = fu(in.at(i, j));
+        }
+    }
+	}
 
 };
 
@@ -203,13 +215,7 @@ public:
   void CalcVal() {
     arg->CalcVal();
 
-    const auto& in = arg->GetVal();
-    auto* out = &this->val;
-    for (int i = 0; i < in.rows; i++) {
-        for (int j = 0; j < in.cols; j++) {
-            out->at(i, j) = fu(in.at(i, j));
-        }
-    }
+    Funcs::for_each_el(arg->GetVal(), &this->val, fu);
   }
 };
 

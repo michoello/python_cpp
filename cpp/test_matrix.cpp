@@ -14,7 +14,8 @@ void test_multiply() {
     A.set_data({1, 2, 3, 4});
     B.set_data({5, 6, 7, 8});
 
-    Matrix C = A.multiply(B);
+    Matrix C(2, 2); 
+		::multiply_matrix(A, B, &C);
 
     assert(C.at(0,0) == 19);
     assert(C.at(0,1) == 22);
@@ -22,6 +23,22 @@ void test_multiply() {
     assert(C.at(1,1) == 50);
 
     std::cout << "Multiply test passed ✅\n";
+}
+
+void test_shared_data() {
+    Matrix A(2, 2);
+		A.set_data({{ 1, 2}, {3, 4}});
+
+    Matrix B(A);
+
+    A.at(1, 1) = 5;
+
+    assert(B.rows == 2);
+    assert(B.cols == 2);
+    assert(B.at(0,0) == 1);
+    assert(B.at(1,1) == 5);
+
+    std::cout << "Shared data passed ✅\n";
 }
 
 
@@ -342,8 +359,7 @@ void test_sse_with_grads() {
     });
 
 
-
-    std::cout << "SSE matrix test 2 passed ✅\n";
+    std::cout << "SSE matrix test with_gradients passed ✅\n";
 }
 
 
@@ -351,6 +367,7 @@ void test_sse_with_grads() {
 
 int main() {
     test_multiply();
+    test_shared_data();
     test_random();
     test_matmul();
     test_sqrt_matrix();
