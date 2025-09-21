@@ -69,12 +69,10 @@ bool approxEqual(T a, T b, double tol = 1e-3) {
 template <typename T>
 void assertEqualVectors(const std::vector<std::vector<T>>& got,
                         const std::vector<std::vector<T>>& expected,
-                        const char* msg = "",
                         double tol = 1e-3)
 {
     if (got.size() != expected.size()) {
-        std::cerr << "Assertion failed (different number of rows)";
-        if (msg && *msg) std::cerr << ": " << msg;
+        std::cerr << "Assertion failed (different number of rows):" << got.size() << " vs " << expected.size();
         std::cerr << "\n";
         std::exit(1);
     }
@@ -82,14 +80,12 @@ void assertEqualVectors(const std::vector<std::vector<T>>& got,
     for (size_t i = 0; i < got.size(); ++i) {
         if (got[i].size() != expected[i].size()) {
             std::cerr << "Assertion failed (different number of columns in row " << i << ")";
-            if (msg && *msg) std::cerr << ": " << msg;
             std::cerr << "\n";
             std::exit(1);
         }
         for (size_t j = 0; j < got[i].size(); ++j) {
             if (!approxEqual(got[i][j], expected[i][j], tol)) {
                 std::cerr << "Assertion failed";
-                if (msg && *msg) std::cerr << ": " << msg;
                 std::cerr << "\n";
 
                 std::cerr << "Mismatch at (" << i << "," << j << "): "
@@ -265,7 +261,7 @@ void test_sum_mat() {
     DataBlock da(2, 3);
 
     Matrix ma(2, 3);
-    ma.set_data({1, 2, 3, 4, 5, 6});
+    ma.set_data({{1, 2, 3}, {4, 5, 6}});
     da.SetVal(ma);
 
     SumBlock ds(&da);
@@ -274,6 +270,12 @@ void test_sum_mat() {
 
     assertEqualVectors(ds.GetVal().value(), {
       {21},
+    });
+
+    ds.CalcDval();
+    assertEqualVectors(da.GetDval().value(), {
+      {1, 1, 1},
+      {1, 1, 1},
     });
 
     std::cout << "Sum matrix test passed ✅\n";

@@ -268,6 +268,17 @@ public:
     }
     val.at(0, 0) = s;
   }
+
+  void CalcDval() {
+       int rows = arg->GetVal().rows;
+       int cols = arg->GetVal().cols;
+       for(int r = 0; r < rows; ++r) {
+         for(int c = 0; c < cols; ++c) {
+           arg->dval.at(r, c) = 1;
+         }
+       }
+  }
+
 };
 
 // Sum Square Error
