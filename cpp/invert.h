@@ -91,6 +91,7 @@ class Block {
 protected:
 
 public:
+  std::vector<Block*> args;
   Matrix val;
   Matrix dval;
 
@@ -124,8 +125,6 @@ public:
     }
 
   }
-
-
 };
 
 class DataBlock: public Block {
@@ -144,7 +143,6 @@ public:
 
 class MatMulBlock: public Block {
 protected:
-  std::vector<Block*> args;
 public:
   MatMulBlock(Block* a1, Block* a2) : Block(a1->GetVal().rows, a2->GetVal().cols) {
     args.push_back(a1);
@@ -202,20 +200,19 @@ public:
 };
 
 class ElFunBlock: public Block {
-  Block *arg;
-
   DifFu fu;
 
 public:
   ElFunBlock(Block *a, DifFu f) : Block(a->GetVal().rows, a->GetVal().cols) {
-     arg = a;
+     args.push_back(a);
+     //arg = a;
      fu = f; 
   }
 
   void CalcVal() {
-    arg->CalcVal();
+    args[0]->CalcVal();
 
-    Funcs::for_each_el(arg->GetVal(), &this->val, fu);
+    Funcs::for_each_el(args[0]->GetVal(), &this->val, fu);
   }
 };
 
@@ -223,8 +220,6 @@ public:
 
 
 class SqrtBlock: public ElFunBlock {
-  Block *arg;
-
 public:
   SqrtBlock(Block *a) : ElFunBlock(a, &Funcs::square) {
   }
@@ -232,14 +227,12 @@ public:
 
 
 class MulElBlock: public ElFunBlock {
-  Block *arg;
-
 public:
   MulElBlock(Block *a, double n) : ElFunBlock(a, Funcs::get_mul_el(n)) {
   }
 };
 
-
+// Difference
 class DifBlock: public AddBlock {
 public:
   // TODO: fix the memory leak here:
@@ -249,17 +242,15 @@ public:
 
 
 class SumBlock: public Block {
-  Block *arg;
-
 public:
   SumBlock(Block *a) : Block(1, 1) {
-     arg = a;
+     args.push_back(a);
   }
 
   void CalcVal() {
-    arg->CalcVal();
+    args[0]->CalcVal();
 
-    const auto& in = arg->GetVal();
+    const auto& in = args[0]->GetVal();
     float s = 0.0;
     for (int i = 0; i < in.rows; i++) {
         for (int j = 0; j < in.cols; j++) {
@@ -270,11 +261,11 @@ public:
   }
 
   void CalcDval() {
-       int rows = arg->GetVal().rows;
-       int cols = arg->GetVal().cols;
+       int rows = args[0]->GetVal().rows;
+       int cols = args[0]->GetVal().cols;
        for(int r = 0; r < rows; ++r) {
          for(int c = 0; c < cols; ++c) {
-           arg->dval.at(r, c) = 1;
+           args[0]->dval.at(r, c) = 1;
          }
        }
   }
@@ -290,14 +281,18 @@ class SSEBlock: public SumBlock {
 public:
 
   SSEBlock(Block *a, Block *b) : SumBlock(new SqrtBlock(new DifBlock(a, b))) {
+     //args.push_back(a);  // model output
+     //args.push_back(b);  // labels
      arg1 = a;
      arg2 = b;
   }
   
   void CalcDval() override {
      dval = val;
+     //auto* dblock =  new MulElBlock(new DifBlock(args[1], args[0]), 2);
      auto* dblock =  new MulElBlock(new DifBlock(arg2, arg1), 2);
      dblock->CalcVal();
+     //args[0]->dval = dblock->GetVal();
      arg1->dval = dblock->GetVal();
   } 
 
