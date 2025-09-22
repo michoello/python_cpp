@@ -59,13 +59,6 @@ public:
       }
     }
 
-    void set_data(const std::vector<double>& values) {
-        if (values.size() != rows * cols) {
-            throw std::runtime_error("Wrong number of values");
-        }
-        *data = values;
-    }
-
     inline double& at(int r, int c) {
         return (*data)[r * cols + c];
     }
@@ -129,10 +122,8 @@ public:
 
 class DataBlock: public Block {
 public: 
-   DataBlock(int r, int c) : Block(r, c) {}
-    
-   void SetVal(const Matrix& m) {
-     val.set_data(*m.data);
+   DataBlock(const Matrix m) : Block(m.rows, m.cols) {
+       val = m;
    }
   
    void CalcVal() override {
@@ -140,7 +131,7 @@ public:
    }
 };
 
-
+// Matrix multiplication
 class MatMulBlock: public Block {
 protected:
 public:
@@ -205,7 +196,6 @@ class ElFunBlock: public Block {
 public:
   ElFunBlock(Block *a, DifFu f) : Block(a->GetVal().rows, a->GetVal().cols) {
      args.push_back(a);
-     //arg = a;
      fu = f; 
   }
 
@@ -215,8 +205,6 @@ public:
     Funcs::for_each_el(args[0]->GetVal(), &this->val, fu);
   }
 };
-
-
 
 
 class SqrtBlock: public ElFunBlock {

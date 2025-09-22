@@ -11,8 +11,8 @@
 void test_multiply() {
     Matrix A(2, 2);
     Matrix B(2, 2);
-    A.set_data({1, 2, 3, 4});
-    B.set_data({5, 6, 7, 8});
+    A.set_data({{1, 2}, {3, 4}});
+    B.set_data({{5, 6}, {7, 8}});
 
     Matrix C(2, 2); 
 		::multiply_matrix(A, B, &C);
@@ -117,18 +117,14 @@ void assertEqualVectors(const std::vector<std::vector<T>>& got,
 void test_matmul() {
 
     Matrix ma(2, 3);
-    ma.set_data({1, 2, 3, 4, 5, 6});
+    ma.set_data({{1, 2, 3}, {4, 5, 6}});
     Matrix mb(3, 4);
-    mb.set_data({1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12});
+    mb.set_data({{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}});
 
-    DataBlock da(2, 3);
-    DataBlock db(3, 4);
-
+    DataBlock da(ma);
+    DataBlock db(mb);
 
     MatMulBlock dc(&da, &db);
-
-    da.SetVal(ma);
-    db.SetVal(mb);
 
     assertEqualVectors(da.GetVal().value(), {
       {1, 2, 3},
@@ -147,14 +143,13 @@ void test_matmul() {
 
 
 void test_sqrt_matrix() {
-    DataBlock da(2, 3);
+    Matrix ma(2, 3);
+    DataBlock da(ma);
 
     SqrtBlock dc(&da);
     SqrtBlock dc2(&dc);
 
-    Matrix ma(2, 3);
-    ma.set_data({1, 2, 3, 4, 5, 6});
-    da.SetVal(ma);
+    ma.set_data({{1, 2, 3}, {4, 5, 6}});
 
     dc2.CalcVal();
     assertEqualVectors(dc2.GetVal().value(), {
@@ -172,26 +167,19 @@ void test_sqrt_matrix() {
 }
 
 void test_add_matrix() {
-    DataBlock da(2, 3);
-    DataBlock db(2, 3);
-    DataBlock dc(2, 3);
-
-
     Matrix ma(2, 3);
-    ma.set_data({1, 2, 3, 4, 5, 6});
-    da.SetVal(ma);
-
     Matrix mb(2, 3);
-    mb.set_data({4, 5, 6, 1, 2, 3 });
-    db.SetVal(mb);
-
     Matrix mc(2, 3);
-    mc.set_data({1, 1, 1, 2, 2, 2});
-    dc.SetVal(mc);
+    DataBlock da(ma);
+    DataBlock db(mb);
+    DataBlock dc(mc);
+
+    ma.set_data({{1, 2, 3}, {4, 5, 6}});
+    mb.set_data({{4, 5, 6}, {1, 2, 3 }});
+    mc.set_data({{1, 1, 1}, {2, 2, 2}});
 
     AddBlock ds1(&da, &db);
     AddBlock ds2(&ds1, &dc);
-
 
     ds2.CalcVal();
     assertEqualVectors(ds2.GetVal().value(), {
@@ -210,16 +198,13 @@ void test_add_matrix() {
 
 
 void test_dif_matrix() {
-    DataBlock da(2, 3);
-    DataBlock db(2, 3);
-
     Matrix ma(2, 3);
-    ma.set_data({1, 2, 3, 4, 5, 6});
-    da.SetVal(ma);
-
     Matrix mb(2, 3);
-    mb.set_data({2, 3, 5, 8, 13, 21 });
-    db.SetVal(mb);
+    DataBlock da(ma);
+    DataBlock db(mb);
+
+    ma.set_data({{1, 2, 3}, {4, 5, 6}});
+    mb.set_data({{2, 3, 5}, {8, 13, 21} });
 
     DifBlock dd(&db, &da); // db - da
 
@@ -233,11 +218,10 @@ void test_dif_matrix() {
 }
 
 void test_mul_el() {
-    DataBlock da(2, 3);
-
     Matrix ma(2, 3);
-    ma.set_data({1, 2, 3, 4, 5, 6});
-    da.SetVal(ma);
+    DataBlock da(ma);
+
+    ma.set_data({{1, 2, 3}, {4, 5, 6}});
 
     MulElBlock db(&da, 2);
     MulElBlock dc(&db, -1);
@@ -258,11 +242,10 @@ void test_mul_el() {
 }
 
 void test_sum_mat() {
-    DataBlock da(2, 3);
-
     Matrix ma(2, 3);
+    DataBlock da(ma);
+
     ma.set_data({{1, 2, 3}, {4, 5, 6}});
-    da.SetVal(ma);
 
     SumBlock ds(&da);
 
@@ -284,15 +267,13 @@ void test_sum_mat() {
 
 
 void test_sse() {
-    DataBlock da(2, 3);
     Matrix ma(2, 3);
-    ma.set_data({1, 2, 3, 4, 5, 6});
-    da.SetVal(ma);
+    DataBlock da(ma);
+    ma.set_data({{1, 2, 3}, {4, 5, 6}});
 
-    DataBlock db(2, 3);
     Matrix mb(2, 3);
-    mb.set_data({1, 2, 4, 4, 5, 4});
-    db.SetVal(mb);
+    DataBlock db(mb);
+    mb.set_data({{1, 2, 4}, {4, 5, 4}});
 
 
     SSEBlock ds(&da, &db);
@@ -309,16 +290,14 @@ void test_sse() {
 
 void test_sse_with_grads() {
     // "output"
-    DataBlock dy(1, 2);
     Matrix my(1, 2);
-    my.set_data({1, 2});  // true labels
-    dy.SetVal(my);
+    DataBlock dy(my);
+    my.set_data({{1, 2}});  // true labels
 
     // "labels"
-    DataBlock dl(1, 2);
     Matrix ml(1, 2);
-    ml.set_data({0, 4});
-    dl.SetVal(ml);
+    DataBlock dl(ml);
+    ml.set_data({{0, 4}});
 
 
     SSEBlock ds(&dy, &dl);
@@ -342,10 +321,6 @@ void test_sse_with_grads() {
     assertEqualVectors(dy.GetDval().value(), {
       {-2, 4},
     });
-
-    // TODO: apply gradient to input - y1 must become =[0.2,3.6] with learning rate 0.1
-    // TODO: check that it reduces the loss after recalculation - must become 3.2
-
 
     dy.ApplyGrad(0.1);
     assertEqualVectors(dy.GetVal().value(), {
