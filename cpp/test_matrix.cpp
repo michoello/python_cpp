@@ -142,6 +142,41 @@ void test_matmul() {
 }
 
 
+void test_matmul2() {
+
+    Matrix ma(1, 2);
+    ma.set_data({{1, 2}});
+    Matrix mb(2, 3);
+    mb.set_data({{3, 4, 5}, { 6, 7, 8}});
+
+    DataBlock da(ma);
+    DataBlock db(mb);
+
+    MatMulBlock dc(&da, &db);
+
+    dc.CalcVal();
+    assertEqualVectors(dc.GetVal().value(), {
+      {15, 18, 21},
+    });
+
+    Matrix dif(1, 3);
+    dif.set_data( {{12, 14, 16}});
+
+    dc.CalcDval(dif);
+    assertEqualVectors(db.GetDval().value(), {
+        {12, 14, 16}, {24, 28, 32}
+    });
+
+    assertEqualVectors(da.GetDval().value(), {
+        {172, 298}
+    });
+
+    // TODO: see test_mse_loss in test_hello.py and extend this test with loss
+
+    std::cout << "MatMul2 test passed ✅\n";
+}
+
+
 void test_sqrt_matrix() {
     Matrix ma(2, 3);
     DataBlock da(ma);
@@ -347,6 +382,7 @@ int main() {
     test_shared_data();
     test_random();
     test_matmul();
+    test_matmul2();
     test_sqrt_matrix();
     test_add_matrix();
     test_mul_el();

@@ -7,6 +7,7 @@
 std::vector<int> invert(const std::vector<int> &v);
 
 class Matrix;
+class Funcs;
 
 void multiply_matrix(const Matrix& a, const Matrix& b, Matrix* c);
 void sum_matrix(const Matrix& a, const Matrix& b, Matrix* c);
@@ -77,6 +78,18 @@ public:
         }
         return out;
     }
+
+  // TODO: block, no mem allocation on each round
+  Matrix transpose() {
+     Matrix r(cols, rows);
+     for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                r.at(j, i) = at(i, j);
+            }
+     }
+     return r;
+  }
+
 };
 
 
@@ -131,6 +144,7 @@ public:
    }
 };
 
+
 // Matrix multiplication
 class MatMulBlock: public Block {
 protected:
@@ -144,6 +158,19 @@ public:
     args[0]->CalcVal();
     args[1]->CalcVal();
     multiply_matrix(args[0]->GetVal(), args[1]->GetVal(), &val);
+  }
+
+  void CalcDval(const Matrix& dif) {
+      // TODO: check dimensions
+      auto& input =  args[0];
+      auto& weights = args[1];
+
+      multiply_matrix(input->val.transpose(), dif, &weights->dval);
+      multiply_matrix(dif, weights->val.transpose(), &input->dval);
+  
+      //self.weights.dif(matmul(transpose(self.input.val()), self.dval()))
+      // self.input.dif(matmul(self.dval(), transpose(self.weights.val())))
+
   }
 };
 
