@@ -370,7 +370,6 @@ void test_sse_with_grads() {
       {3.2},
     });
 
-
     std::cout << "SSE matrix test with_gradients passed ✅\n";
 }
 

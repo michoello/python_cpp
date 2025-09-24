@@ -1,3 +1,8 @@
+/*
+*  LLM stands for Little Lazy Matrix
+*
+*/
+
 #include <vector>
 #include <iostream>
 #include <random>
