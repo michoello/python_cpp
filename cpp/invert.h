@@ -3,6 +3,7 @@
 #include <random>
 #include <functional>
 #include <memory>
+#include <cmath>
 
 std::vector<int> invert(const std::vector<int> &v);
 
@@ -79,7 +80,7 @@ public:
         return out;
     }
 
-  // TODO: block, no mem allocation on each round
+  // TODO: CRTP-based view block, avoid mem allocation on each round
   Matrix transpose() {
      Matrix r(cols, rows);
      for (int i = 0; i < rows; i++) {
@@ -167,10 +168,6 @@ public:
 
       multiply_matrix(input->val.transpose(), dif, &weights->dval);
       multiply_matrix(dif, weights->val.transpose(), &input->dval);
-  
-      //self.weights.dif(matmul(transpose(self.input.val()), self.dval()))
-      // self.input.dif(matmul(self.dval(), transpose(self.weights.val())))
-
   }
 };
 
@@ -201,6 +198,21 @@ public:
     return d * d;
   } 
 
+  static double sigmoid(double x) {
+    if (x >= 0) {
+        double z = std::exp(-x);
+        return 1.0 / (1.0 + z);
+    } else {
+        double z = std::exp(x);
+        return z / (1.0 + z);
+    }
+  }
+
+  static double sigmoid_derivative(double x) {
+    double s = sigmoid(x);
+    return s * (1.0 - s);
+  }
+
   static DifFu get_mul_el(double n) {
     return [n](double d) {
       return n * d;
@@ -218,8 +230,9 @@ public:
 };
 
 class ElFunBlock: public Block {
+protected:
   DifFu fu;
-
+  DifFu dfu;
 public:
   ElFunBlock(Block *a, DifFu f) : Block(a->GetVal().rows, a->GetVal().cols) {
      args.push_back(a);
@@ -231,6 +244,11 @@ public:
 
     Funcs::for_each_el(args[0]->GetVal(), &this->val, fu);
   }
+
+  void CalcDval() {
+    Funcs::for_each_el(args[0]->GetVal(), &this->dval, dfu);
+    // TODO: args[0]->CalcDval();
+  }
 };
 
 
@@ -240,6 +258,13 @@ public:
   }
 };
 
+
+class SigmoidBlock: public ElFunBlock {
+public:
+  SigmoidBlock(Block *a) : ElFunBlock(a, &Funcs::sigmoid) {
+      dfu = &Funcs::sigmoid_derivative;
+  }
+};
 
 class MulElBlock: public ElFunBlock {
 public:

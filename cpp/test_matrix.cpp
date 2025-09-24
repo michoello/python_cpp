@@ -142,7 +142,7 @@ void test_matmul() {
 }
 
 
-void test_matmul2() {
+void test_matmul_with_grads() {
 
     Matrix ma(1, 2);
     ma.set_data({{1, 2}});
@@ -375,14 +375,40 @@ void test_sse_with_grads() {
 }
 
 
+void test_sigmoid_with_grads() {
 
+    Matrix mx(1, 2);
+    DataBlock x(mx);
+    mx.set_data({{0.1, -0.2}});
+
+    Matrix mw(2, 3);
+
+    DataBlock w(mw);
+    mw.set_data({{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
+
+    MatMulBlock mm(&x, &w);
+
+    SigmoidBlock sb(&mm);
+
+    sb.CalcVal();
+
+    assertEqualVectors(sb.GetVal().value(), {{0.527, 0.478, 0.468}});
+
+    sb.CalcDval();
+    // TODO: add bce loss and check
+    // see test_bce_loss in python tests
+    // assertEqualVectors(sb.GetDval().value(), {{ 0.527, -0.522, -0.0004 }});
+    assertEqualVectors(sb.GetDval().value(), {{ 0.2492, 0.2495, 0.2489 }});
+
+    std::cout << "Sigmoid test with gradients passed ✅\n";
+}
 
 int main() {
     test_multiply();
     test_shared_data();
     test_random();
     test_matmul();
-    test_matmul2();
+    test_matmul_with_grads();
     test_sqrt_matrix();
     test_add_matrix();
     test_mul_el();
@@ -390,4 +416,5 @@ int main() {
     test_sum_mat();
     test_sse();
     test_sse_with_grads();
+    test_sigmoid_with_grads();
 }
