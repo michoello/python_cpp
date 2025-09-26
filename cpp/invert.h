@@ -4,6 +4,7 @@
 */
 
 #include <vector>
+#include <cassert>
 #include <iostream>
 #include <random>
 #include <functional>
@@ -15,8 +16,8 @@ std::vector<int> invert(const std::vector<int> &v);
 class Matrix;
 class Funcs;
 
-void multiply_matrix(const Matrix& a, const Matrix& b, Matrix* c);
-void sum_matrix(const Matrix& a, const Matrix& b, Matrix* c);
+void multiply_matrix(const Matrix& a, const Matrix& y_true, Matrix* c);
+void sum_matrix(const Matrix& a, const Matrix& y_true, Matrix* c);
 
 class Matrix {
 public:
@@ -32,6 +33,11 @@ public:
        cols = other.cols;
        data = other.data;
 		}
+
+    // TODO: remove it
+    Matrix(const std::vector<std::vector<double>>& vals) {
+        set_data(vals);
+    }
 
     // Constructor with values (nested vector)
     void set_data(const std::vector<std::vector<double>>& vals) {
@@ -218,6 +224,8 @@ public:
     return s * (1.0 - s);
   }
 
+
+
   static DifFu get_mul_el(double n) {
     return [n](double d) {
       return n * d;
@@ -325,11 +333,11 @@ class SSEBlock: public SumBlock {
 
 public:
 
-  SSEBlock(Block *a, Block *b) : SumBlock(new SqrtBlock(new DifBlock(a, b))) {
+  SSEBlock(Block *a, Block *y_true) : SumBlock(new SqrtBlock(new DifBlock(a, y_true))) {
      //args.push_back(a);  // model output
-     //args.push_back(b);  // labels
+     //args.push_back(y_true);  // labels
      arg1 = a;
-     arg2 = b;
+     arg2 = y_true;
   }
   
   void CalcDval() override {
@@ -340,8 +348,64 @@ public:
      //args[0]->dval = dblock->GetVal();
      arg1->dval = dblock->GetVal();
   } 
-
 };
+
+
+// Binary Cross Enthropy
+// TODO: calc average as a single value. Currently it is consistent with 
+// python impl having same flaw
+class BCEBlock: public Block {
+protected:
+public:
+  BCEBlock(Block* a1, Block* a2) : Block(a1->GetVal().rows, a1->GetVal().cols) {
+    args.push_back(a1); // model output
+    args.push_back(a2); // labels
+  }
+
+  void CalcVal() override {
+    args[0]->CalcVal();
+    args[1]->CalcVal();
+
+    const auto& y_pred = args[0]->GetVal();
+    const auto& y_true = args[1]->GetVal();
+    auto* c = &val;
+
+    assert(y_pred.rows == y_true.rows && "Rows not equal");
+    assert(y_pred.cols == y_true.cols && "Cols not equal");
+
+    double epsilon = 1e-15; // small value to avoid log(0)
+    for (int i = 0; i < y_pred.rows; i++) {
+        for (int j = 0; j < y_true.cols; j++) {
+
+            // Clip predictions to avoid log(0)
+            double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
+            c->at(i, j) = -(y_true.at(i, j) * std::log(p) + (1.0 - y_true.at(i, j)) * std::log(1.0 - p));
+        }
+    }
+    // TODO: result matrix should be [1, 1] dimensional and be an average across all elements.
+    // 
+  }
+
+  //void CalcDval(const Matrix& dif) {
+  void CalcDval() override {
+    auto& input =  args[0];
+    auto& weights = args[1];
+
+    const auto& y_pred = args[0]->GetVal();
+    const auto& y_true = args[1]->GetVal();
+    auto* c = &dval;
+
+    double epsilon = 1e-12;
+
+    for (int i = 0; i < y_pred.rows; i++) {
+        for (int j = 0; j < y_true.cols; j++) {
+            double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
+            c->at(i, j) = -(y_true.at(i, j) / p) + ((1.0 - y_true.at(i, j)) / (1.0 - p));
+        }
+    }
+  }
+};
+
 
 
 

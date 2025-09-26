@@ -393,6 +393,8 @@ void test_sigmoid_with_grads() {
 
     assertEqualVectors(sb.GetVal().value(), {{0.527, 0.478, 0.468}});
 
+    Matrix dif(1,1);/*TODO actual matrix */
+    //sb.CalcDval(dif);
     sb.CalcDval();
     // TODO: add bce loss and check
     // see test_bce_loss in python tests
@@ -401,6 +403,31 @@ void test_sigmoid_with_grads() {
 
     std::cout << "Sigmoid test with gradients passed ✅\n";
 }
+
+
+// see test_bce_loss in python tests
+
+void test_bce_with_grads() {
+    Matrix mypred(1, 3);
+    DataBlock ypred(mypred);
+    mypred.set_data({{0.527, 0.478, 0.468}});
+    Matrix mytrue(1, 3);
+    DataBlock ytrue(mytrue);
+    mytrue.set_data({{0, 1, 0.468}});
+
+    BCEBlock bce(&ypred, &ytrue);
+
+    bce.CalcVal();
+    assertEqualVectors(bce.GetVal().value(), {{0.749, 0.738, 0.691}});
+    
+    bce.CalcDval();
+    assertEqualVectors(bce.GetDval().value(), {{ 2.11416, -2.09205, 0 }});
+
+    std::cout << "BCE test with gradients passed ✅\n";
+}
+
+
+
 
 int main() {
     test_multiply();
@@ -416,4 +443,5 @@ int main() {
     test_sse();
     test_sse_with_grads();
     test_sigmoid_with_grads();
+    test_bce_with_grads();
 }

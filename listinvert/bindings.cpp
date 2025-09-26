@@ -14,7 +14,7 @@ PYBIND11_MODULE(_listinvert, m) {
     m.doc() = "Matrix with flat vector storage";
 
     py::class_<Matrix>(m, "Matrix")
-        .def(py::init<>())  // empty
+        //.def(py::init<>())  // empty
         .def(py::init<int,int>(), py::arg("rows"), py::arg("cols"))
         .def(py::init<const std::vector<std::vector<double>>&>(), py::arg("values"))
         .def(py::init([](py::kwargs kwargs) {
@@ -26,7 +26,8 @@ PYBIND11_MODULE(_listinvert, m) {
             return Matrix(r, c);
         })
         )
-        .def("multiply", &Matrix::multiply)
+        .def("set_data", &Matrix::set_data)
+        //.def("multiply", &Matrix::multiply)
         .def("fill_uniform", &Matrix::fill_uniform)
         .def("value", &Matrix::value)
         .def("at", (double& (Matrix::*)(int,int)) &Matrix::at,
