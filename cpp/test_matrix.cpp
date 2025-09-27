@@ -399,6 +399,7 @@ void test_sigmoid_with_grads() {
     // TODO: add bce loss and check
     // see test_bce_loss in python tests
     // assertEqualVectors(sb.GetDval().value(), {{ 0.527, -0.522, -0.0004 }});
+    //
     assertEqualVectors(sb.GetDval().value(), {{ 0.2492, 0.2495, 0.2489 }});
 
     std::cout << "Sigmoid test with gradients passed ✅\n";
@@ -428,6 +429,53 @@ void test_bce_with_grads() {
 
 
 
+void test_full_layer_with_loss_with_grads() {
+    Matrix mx(1, 2);
+    DataBlock x(mx);
+    mx.set_data({{0.1, -0.2}});
+
+    Matrix mw(2, 3);
+
+    DataBlock w(mw);
+    mw.set_data({{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
+
+    MatMulBlock mm(&x, &w);
+    SigmoidBlock sb(&mm);
+    
+    Matrix my(1, 3);
+    DataBlock y(my);
+    my.set_data({{0, 1, 0.468}});
+
+    // loss
+    BCEBlock bce(&sb, &y);
+
+    // Forward
+    bce.CalcVal();
+    assertEqualVectors(bce.GetVal().value(), {{0.75, 0.739, 0.691}});
+    assertEqualVectors(sb.GetVal().value(), {{0.527, 0.478, 0.468}});
+
+    // Calc diff and check the loss values
+    bce.CalcDval();
+    assertEqualVectors(bce.GetDval().value(), {{2.116, -2.094, -0.002}});
+
+    // Make sure the gradient flows backwards
+    // Check sigmoid diff
+    assertEqualVectors(sb.GetDval().value(), {{ 0.527, -0.522, -0.0004 }});
+
+    // Check the matrix diff
+    assertEqualVectors(w.GetDval().value(), {
+       {0.0527, -0.052, -4.543/100000},
+       {-0.105, 0.104, 9.086/100000}
+    });
+    
+    // TODO: apply grads to w, calc loss value and check that it is reduced
+    // see test_bce_loss inpython    
+
+    std::cout << "Full layer test with gradients passed ✅\n";
+}
+
+
+
 
 int main() {
     test_multiply();
@@ -444,4 +492,5 @@ int main() {
     test_sse_with_grads();
     test_sigmoid_with_grads();
     test_bce_with_grads();
+    test_full_layer_with_loss_with_grads();
 }

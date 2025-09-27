@@ -25,8 +25,7 @@ void multiply_matrix(const Matrix& a, const Matrix& b, Matrix* c) {
 }
 
 void sum_matrix(const Matrix& a, const Matrix& b, Matrix* c) {
-    // TODO: that's not enough, add conditions
-    if (a.rows != b.rows || a.rows != c->rows || b.cols != c->cols || a.cols != b.cols) {
+    if (!(a.rows == b.rows && a.rows == c->rows && b.cols == c->cols && a.cols == b.cols)) {
         throw std::invalid_argument("Matrix dimensions do not match for sum");
     }
     for (int i = 0; i < a.rows; i++) {
@@ -35,4 +34,18 @@ void sum_matrix(const Matrix& a, const Matrix& b, Matrix* c) {
         }
     }
 }
+
+void mul_el_matrix(const Matrix& a, const Matrix& b, Matrix* c) {
+    if (!(a.rows == b.rows && a.rows == c->rows && b.cols == c->cols && a.cols == b.cols)) {
+        throw std::invalid_argument("Matrix dimensions do not match for mul_el");
+    }
+    for (int i = 0; i < a.rows; i++) {
+        for (int j = 0; j < a.cols; j++) {
+            c->at(i, j) = a.at(i, j) * b.at(i, j);
+        }
+    }
+}
+
+
+
 

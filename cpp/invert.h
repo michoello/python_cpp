@@ -18,6 +18,7 @@ class Funcs;
 
 void multiply_matrix(const Matrix& a, const Matrix& y_true, Matrix* c);
 void sum_matrix(const Matrix& a, const Matrix& y_true, Matrix* c);
+void mul_el_matrix(const Matrix& a, const Matrix& b, Matrix* c);
 
 class Matrix {
 public:
@@ -127,6 +128,7 @@ public:
 
   virtual void CalcVal() = 0;
   virtual void CalcDval() {}; // TODO = 0
+  virtual void CalcDval(const Matrix& dvalue) {}; // TODO = 0
 
   Matrix& GetDval() {
      return dval;
@@ -257,8 +259,7 @@ public:
 
     Funcs::for_each_el(args[0]->GetVal(), &this->val, fu);
   }
-
-  void CalcDval() {
+  void CalcDval() override {
     Funcs::for_each_el(args[0]->GetVal(), &this->dval, dfu);
     // TODO: args[0]->CalcDval();
   }
@@ -276,6 +277,17 @@ class SigmoidBlock: public ElFunBlock {
 public:
   SigmoidBlock(Block *a) : ElFunBlock(a, &Funcs::sigmoid) {
       dfu = &Funcs::sigmoid_derivative;
+  }
+
+
+  using ElFunBlock::CalcDval;
+  void CalcDval(const Matrix& grads) override {
+     assert(grads.rows == dval.rows && "Rows not equal");
+     assert(grads.cols == dval.cols && "Cols not equal");
+     this->CalcDval();
+     mul_el_matrix(dval, grads, &dval);
+
+     args[0]->CalcDval(dval);
   }
 };
 
@@ -388,9 +400,6 @@ public:
 
   //void CalcDval(const Matrix& dif) {
   void CalcDval() override {
-    auto& input =  args[0];
-    auto& weights = args[1];
-
     const auto& y_pred = args[0]->GetVal();
     const auto& y_true = args[1]->GetVal();
     auto* c = &dval;
@@ -403,6 +412,9 @@ public:
             c->at(i, j) = -(y_true.at(i, j) / p) + ((1.0 - y_true.at(i, j)) / (1.0 - p));
         }
     }
+
+    args[0]->CalcDval(dval);
+
   }
 };
 
