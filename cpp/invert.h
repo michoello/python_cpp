@@ -140,7 +140,7 @@ public:
   void ApplyGrad(float learning_rate) {
     for (int i = 0; i < val.rows; i++) {
         for (int j = 0; j < val.cols; j++) {
-            val.at(i, j) += dval.at(i, j) * learning_rate;
+            val.at(i, j) -= dval.at(i, j) * learning_rate;
         }
     }
 
@@ -355,7 +355,7 @@ public:
   void CalcDval() override {
      dval = val;
      //auto* dblock =  new MulElBlock(new DifBlock(args[1], args[0]), 2);
-     auto* dblock =  new MulElBlock(new DifBlock(arg2, arg1), 2);
+     auto* dblock =  new MulElBlock(new DifBlock(arg1, arg2), 2);
      dblock->CalcVal();
      //args[0]->dval = dblock->GetVal();
      arg1->dval = dblock->GetVal();

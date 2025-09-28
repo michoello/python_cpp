@@ -339,9 +339,7 @@ void test_sse_with_grads() {
 
     ds.CalcVal();
 
-    assertEqualVectors(ds.GetVal().value(), {
-      {5},
-    });
+    assertEqualVectors(ds.GetVal().value(), { {5} });
 
 
     // Calc derivatives
@@ -354,7 +352,7 @@ void test_sse_with_grads() {
 
     // Derivative of its args
     assertEqualVectors(dy.GetDval().value(), {
-      {-2, 4},
+      {2, -4},
     });
 
     dy.ApplyGrad(0.1);
@@ -437,7 +435,10 @@ void test_full_layer_with_loss_with_grads() {
     Matrix mw(2, 3);
 
     DataBlock w(mw);
-    mw.set_data({{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
+    mw.set_data({
+      {-0.1, 0.5, 0.3},
+      {-0.6, 0.7, 0.8}
+    });
 
     MatMulBlock mm(&x, &w);
     SigmoidBlock sb(&mm);
@@ -451,8 +452,8 @@ void test_full_layer_with_loss_with_grads() {
 
     // Forward
     bce.CalcVal();
-    assertEqualVectors(bce.GetVal().value(), {{0.75, 0.739, 0.691}});
     assertEqualVectors(sb.GetVal().value(), {{0.527, 0.478, 0.468}});
+    assertEqualVectors(bce.GetVal().value(), {{0.75, 0.739, 0.691}});
 
     // Calc diff and check the loss values
     bce.CalcDval();
@@ -469,7 +470,37 @@ void test_full_layer_with_loss_with_grads() {
     });
     
     // TODO: apply grads to w, calc loss value and check that it is reduced
-    // see test_bce_loss inpython    
+    // see test_bce_loss inpython
+    //
+    // Check that w values are still the same
+    assertEqualVectors(w.GetVal().value(), {
+      {-0.1, 0.5, 0.3},
+      {-0.6, 0.7, 0.8}
+    });
+
+    w.ApplyGrad(1.0);
+ 
+    // Check that w values have changed
+    assertEqualVectors(w.GetVal().value(), {
+      {-0.153, 0.552, 0.3},
+      {-0.495, 0.596, 0.8}
+    });
+
+    // Recalculate the loss
+    bce.CalcVal();
+    // Assure it got smaller!
+    assertEqualVectors(sb.GetVal().value(), {{0.521, 0.484, 0.468}});
+    assertEqualVectors(bce.GetVal().value(), {{0.736, 0.726, 0.691}});
+
+
+    // Update the inputs, and check that it also reduces the loss
+    x.ApplyGrad(0.01);
+    assertEqualVectors(x.GetVal().value(), {{0.103, -0.193}});
+
+    bce.CalcVal();
+    assertEqualVectors(bce.GetVal().value(), {{ 0.734, 0.723, 0.691}});
+
+
 
     std::cout << "Full layer test with gradients passed ✅\n";
 }
