@@ -126,7 +126,15 @@ public:
     return val;
   }
 
-  virtual void CalcVal() = 0;
+  virtual void CalcValImpl() = 0;
+
+  void CalcVal() {
+      for(auto* arg: args) {
+         arg->CalcVal();
+      }
+
+      CalcValImpl();
+  }
   virtual void CalcDval() {}; // TODO = 0
   virtual void CalcDval(const Matrix& dvalue) {}; // TODO = 0
 
@@ -154,7 +162,7 @@ public:
        val = m;
    }
   
-   void CalcVal() override {
+   void CalcValImpl() override {
       // nothing
    }
 };
@@ -180,10 +188,7 @@ public:
     args.push_back(a2);
   }
 
-  void CalcVal() override {
-    args[0]->CalcVal();
-    args[1]->CalcVal();
-
+  void CalcValImpl() override {
     MatMulFuncs::forward({args[0]->GetVal(), args[1]->GetVal()}, &val);
   }
 
@@ -195,8 +200,6 @@ public:
 
 
 class AddBlock: public Block {
-protected:
-  std::vector<Block*> args;
 public:
   AddBlock(Block* a1, Block* a2) : Block(a1->GetVal().rows, a1->GetVal().cols) {
     // TODO: check dimensions
@@ -204,9 +207,7 @@ public:
     args.push_back(a2);
   }
 
-  void CalcVal() override {
-    args[0]->CalcVal();
-    args[1]->CalcVal();
+  void CalcValImpl() override {
     sum_matrix(args[0]->GetVal(), args[1]->GetVal(), &val);
   }
 };
@@ -261,9 +262,7 @@ public:
      forward = f; 
   }
 
-  void CalcVal() {
-    args[0]->CalcVal();
-
+  void CalcValImpl() {
     Funcs::for_each_el(args[0]->GetVal(), &this->val, forward);
   }
   void CalcDval() override {
@@ -319,9 +318,7 @@ public:
      args.push_back(a);
   }
 
-  void CalcVal() {
-    args[0]->CalcVal();
-
+  void CalcValImpl() {
     const auto& in = args[0]->GetVal();
     float s = 0.0;
     for (int i = 0; i < in.rows; i++) {
@@ -379,10 +376,7 @@ public:
     args.push_back(a2); // labels
   }
 
-  void CalcVal() override {
-    args[0]->CalcVal();
-    args[1]->CalcVal();
-
+  void CalcValImpl() override {
     const auto& y_pred = args[0]->GetVal();
     const auto& y_true = args[1]->GetVal();
     auto* c = &val;
