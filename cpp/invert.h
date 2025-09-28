@@ -114,8 +114,7 @@ public:
   Matrix val;
   Matrix dval;
 
-
-  Block(int r, int c) : val(r, c), dval(r, c) {
+  Block(const std::vector<Block*>& argz, int r, int c) : args(argz), val(r, c), dval(r, c) {
   }
 
   const Matrix& GetVal() const {
@@ -126,15 +125,18 @@ public:
     return val;
   }
 
-  virtual void CalcValImpl() = 0;
+  virtual void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) = 0;
 
   void CalcVal() {
+      std::vector<Matrix> ins;
       for(auto* arg: args) {
          arg->CalcVal();
+         ins.push_back(arg->GetVal());
       }
 
-      CalcValImpl();
+      CalcValImpl(ins, &val);
   }
+
   virtual void CalcDval() {}; // TODO = 0
   virtual void CalcDval(const Matrix& dvalue) {}; // TODO = 0
 
@@ -158,14 +160,15 @@ public:
 
 class DataBlock: public Block {
 public: 
-   DataBlock(const Matrix m) : Block(m.rows, m.cols) {
+   DataBlock(const Matrix m) : Block({}, m.rows, m.cols) {
        val = m;
    }
   
-   void CalcValImpl() override {
+   void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) override {
       // nothing
    }
 };
+
 
 
 struct MatMulFuncs {
@@ -183,13 +186,11 @@ struct MatMulFuncs {
 class MatMulBlock: public Block {
 protected:
 public:
-  MatMulBlock(Block* a1, Block* a2) : Block(a1->GetVal().rows, a2->GetVal().cols) {
-    args.push_back(a1);
-    args.push_back(a2);
+  MatMulBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->GetVal().rows, a2->GetVal().cols) {
   }
 
-  void CalcValImpl() override {
-    MatMulFuncs::forward({args[0]->GetVal(), args[1]->GetVal()}, &val);
+  void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) override {
+    MatMulFuncs::forward(ins, out);
   }
 
   void CalcDval(const Matrix& grads) {
@@ -201,14 +202,12 @@ public:
 
 class AddBlock: public Block {
 public:
-  AddBlock(Block* a1, Block* a2) : Block(a1->GetVal().rows, a1->GetVal().cols) {
+  AddBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->GetVal().rows, a1->GetVal().cols) {
     // TODO: check dimensions
-    args.push_back(a1);
-    args.push_back(a2);
   }
 
-  void CalcValImpl() override {
-    sum_matrix(args[0]->GetVal(), args[1]->GetVal(), &val);
+  void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) override {
+    sum_matrix(ins[0], ins[1], out);
   }
 };
 
@@ -257,13 +256,12 @@ protected:
   DifFu forward;
   DifFu backward;
 public:
-  ElFunBlock(Block *a, DifFu f) : Block(a->GetVal().rows, a->GetVal().cols) {
-     args.push_back(a);
+  ElFunBlock(Block *a, DifFu f) : Block({a}, a->GetVal().rows, a->GetVal().cols) {
      forward = f; 
   }
 
-  void CalcValImpl() {
-    Funcs::for_each_el(args[0]->GetVal(), &this->val, forward);
+  void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) override {
+    Funcs::for_each_el(ins[0], out, forward);
   }
   void CalcDval() override {
     Funcs::for_each_el(args[0]->GetVal(), &this->dval, backward);
@@ -314,16 +312,14 @@ public:
 
 class SumBlock: public Block {
 public:
-  SumBlock(Block *a) : Block(1, 1) {
-     args.push_back(a);
+  SumBlock(Block *a) : Block({a}, 1, 1) {
   }
 
-  void CalcValImpl() {
-    const auto& in = args[0]->GetVal();
+  void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) override {
     float s = 0.0;
-    for (int i = 0; i < in.rows; i++) {
-        for (int j = 0; j < in.cols; j++) {
-            s += in.at(i, j);
+    for (int i = 0; i < ins[0].rows; i++) {
+        for (int j = 0; j < ins[0].cols; j++) {
+            s += ins[0].at(i, j);
         }
     }
     val.at(0, 0) = s;
@@ -371,15 +367,13 @@ public:
 class BCEBlock: public Block {
 protected:
 public:
-  BCEBlock(Block* a1, Block* a2) : Block(a1->GetVal().rows, a1->GetVal().cols) {
-    args.push_back(a1); // model output
-    args.push_back(a2); // labels
+  BCEBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->GetVal().rows, a1->GetVal().cols) {
   }
 
-  void CalcValImpl() override {
-    const auto& y_pred = args[0]->GetVal();
-    const auto& y_true = args[1]->GetVal();
-    auto* c = &val;
+  void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) override {
+    const auto& y_pred = ins[0];
+    const auto& y_true = ins[1];
+    auto* c = out;
 
     assert(y_pred.rows == y_true.rows && "Rows not equal");
     assert(y_pred.cols == y_true.cols && "Cols not equal");
@@ -416,9 +410,4 @@ public:
 
   }
 };
-
-
-
-
-
 
