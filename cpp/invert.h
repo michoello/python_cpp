@@ -93,7 +93,7 @@ public:
     }
 
   // TODO: CRTP-based view block, avoid mem allocation on each round
-  Matrix transpose() {
+  Matrix transpose() const {
      Matrix r(cols, rows);
      for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
@@ -147,6 +147,7 @@ public:
   }
 };
 
+
 class DataBlock: public Block {
 public: 
    DataBlock(const Matrix m) : Block(m.rows, m.cols) {
@@ -158,6 +159,17 @@ public:
    }
 };
 
+
+struct MatMulFuncs {
+  static void forward(const std::vector<Matrix>& ins, Matrix* out) {
+    multiply_matrix(ins[0], ins[1], out);
+  }
+
+  static void backward(const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
+      multiply_matrix(ins[0].transpose(), grads, out[1]);
+      multiply_matrix(grads, ins[1].transpose(), out[0]);
+  }
+};
 
 // Matrix multiplication
 class MatMulBlock: public Block {
@@ -171,16 +183,13 @@ public:
   void CalcVal() override {
     args[0]->CalcVal();
     args[1]->CalcVal();
-    multiply_matrix(args[0]->GetVal(), args[1]->GetVal(), &val);
+
+    MatMulFuncs::forward({args[0]->GetVal(), args[1]->GetVal()}, &val);
   }
 
-  void CalcDval(const Matrix& dif) {
+  void CalcDval(const Matrix& grads) {
       // TODO: check dimensions
-      auto& input =  args[0];
-      auto& weights = args[1];
-
-      multiply_matrix(input->val.transpose(), dif, &weights->dval);
-      multiply_matrix(dif, weights->val.transpose(), &input->dval);
+      MatMulFuncs::backward({args[0]->GetVal(), args[1]->GetVal()}, grads, {&args[0]->dval, &args[1]->dval});
   }
 };
 
@@ -226,8 +235,6 @@ public:
     return s * (1.0 - s);
   }
 
-
-
   static DifFu get_mul_el(double n) {
     return [n](double d) {
       return n * d;
@@ -246,21 +253,21 @@ public:
 
 class ElFunBlock: public Block {
 protected:
-  DifFu fu;
-  DifFu dfu;
+  DifFu forward;
+  DifFu backward;
 public:
   ElFunBlock(Block *a, DifFu f) : Block(a->GetVal().rows, a->GetVal().cols) {
      args.push_back(a);
-     fu = f; 
+     forward = f; 
   }
 
   void CalcVal() {
     args[0]->CalcVal();
 
-    Funcs::for_each_el(args[0]->GetVal(), &this->val, fu);
+    Funcs::for_each_el(args[0]->GetVal(), &this->val, forward);
   }
   void CalcDval() override {
-    Funcs::for_each_el(args[0]->GetVal(), &this->dval, dfu);
+    Funcs::for_each_el(args[0]->GetVal(), &this->dval, backward);
     // TODO: args[0]->CalcDval();
   }
 };
@@ -276,7 +283,7 @@ public:
 class SigmoidBlock: public ElFunBlock {
 public:
   SigmoidBlock(Block *a) : ElFunBlock(a, &Funcs::sigmoid) {
-      dfu = &Funcs::sigmoid_derivative;
+      backward = &Funcs::sigmoid_derivative;
   }
 
 
@@ -354,10 +361,8 @@ public:
   
   void CalcDval() override {
      dval = val;
-     //auto* dblock =  new MulElBlock(new DifBlock(args[1], args[0]), 2);
      auto* dblock =  new MulElBlock(new DifBlock(arg1, arg2), 2);
      dblock->CalcVal();
-     //args[0]->dval = dblock->GetVal();
      arg1->dval = dblock->GetVal();
   } 
 };
