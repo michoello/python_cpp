@@ -105,12 +105,24 @@ public:
 
 };
 
+struct FuncPair {
+  // Forward takes vector of input args, and pointer to result
+  using ForwardFn  = std::function<void(const std::vector<Matrix>&, Matrix*)>;
+  // Backward takes vector of input args, grads matrix, and vector of matrixes to write results to
+  using BackwardFn = std::function<void(const std::vector<Matrix>&, const Matrix&, const std::vector<Matrix*>&)>;
+
+  ForwardFn forward;
+  BackwardFn backward;
+};
+
+
 
 class Block {
 protected:
 
 public:
   std::vector<Block*> args;
+  FuncPair funcs;
   Matrix val;
   Matrix dval;
 
@@ -125,7 +137,6 @@ public:
     return val;
   }
 
-  virtual void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) = 0;
 
   void CalcVal() {
       std::vector<Matrix> ins;
@@ -137,8 +148,26 @@ public:
       CalcValImpl(ins, &val);
   }
 
-  virtual void CalcDval() {}; // TODO = 0
-  virtual void CalcDval(const Matrix& dvalue) {}; // TODO = 0
+  virtual void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) {
+		funcs.forward(ins, out);
+  }
+
+  virtual void CalcDval() {
+     Matrix ones(dval.rows, dval.cols); // !!
+     for (int i = 0; i < ones.rows; i++) {
+      	for (int j = 0; j < ones.cols; j++) {
+            ones.at(i, j) = 1;
+        }
+     }
+     CalcDval(ones);
+  }
+
+  virtual void CalcDval(const Matrix& grads) {
+    funcs.backward({args[0]->GetVal(), args[1]->GetVal()}, grads, {&args[0]->dval, &args[1]->dval});
+    for(auto* arg: args) {
+        arg->CalcDval(arg->dval);
+    } 
+  }
 
   Matrix& GetDval() {
      return dval;
@@ -167,22 +196,16 @@ public:
    void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) override {
       // nothing
    }
+
+   // TODO: remove it
+   virtual void CalcDval(const Matrix& grads) {
+   }
 };
 
-struct FuncPair {
-  // Forward takes vector of input args, and pointer to result
-  using ForwardFn  = std::function<void(const std::vector<Matrix>&, Matrix*)>;
-  // Backward takes vector of input args, grads matrix, and vector of matrixes to write results to
-  using BackwardFn = std::function<void(const std::vector<Matrix>&, const Matrix&, const std::vector<Matrix*>&)>;
-
-  ForwardFn forward;
-  BackwardFn backward;
-};
 
 
 // Matrix multiplication
 class MatMulBlock: public Block {
-  FuncPair funcs;
 public:
   MatMulBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->GetVal().rows, a2->GetVal().cols) {
     funcs = FuncPair{
@@ -196,15 +219,6 @@ public:
         multiply_matrix(grads, ins[1].transpose(), out[0]);
       }
     };
-  }
-
-  void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) override {
-    funcs.forward(ins, out);
-  }
-
-  void CalcDval(const Matrix& grads) {
-    // TODO: check dimensions
-    funcs.backward({args[0]->GetVal(), args[1]->GetVal()}, grads, {&args[0]->dval, &args[1]->dval});
   }
 };
 
@@ -335,13 +349,13 @@ public:
   }
 
   void CalcDval() {
-       int rows = args[0]->GetVal().rows;
-       int cols = args[0]->GetVal().cols;
-       for(int r = 0; r < rows; ++r) {
-         for(int c = 0; c < cols; ++c) {
+    int rows = args[0]->GetVal().rows;
+    int cols = args[0]->GetVal().cols;
+    for(int r = 0; r < rows; ++r) {
+       for(int c = 0; c < cols; ++c) {
            args[0]->dval.at(r, c) = 1;
-         }
        }
+    }
   }
 
 };
@@ -377,31 +391,54 @@ class BCEBlock: public Block {
 protected:
 public:
   BCEBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->GetVal().rows, a1->GetVal().cols) {
-  }
+    assert(a1->val.rows == a2->val.rows && "Rows not equal");
+    assert(a1->val.cols == a2->val.cols && "Cols not equal");
 
-  void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) override {
-    const auto& y_pred = ins[0];
-    const auto& y_true = ins[1];
-    auto* c = out;
+    funcs = FuncPair{
+      // forward
+      [](const std::vector<Matrix>& ins, Matrix* out) {
+				const auto& y_pred = ins[0];
+				const auto& y_true = ins[1];
+				auto* c = out;
 
-    assert(y_pred.rows == y_true.rows && "Rows not equal");
-    assert(y_pred.cols == y_true.cols && "Cols not equal");
-
-    double epsilon = 1e-15; // small value to avoid log(0)
-    for (int i = 0; i < y_pred.rows; i++) {
-        for (int j = 0; j < y_true.cols; j++) {
+        double epsilon = 1e-15; // small value to avoid log(0)
+        for (int i = 0; i < y_pred.rows; i++) {
+        	for (int j = 0; j < y_true.cols; j++) {
 
             // Clip predictions to avoid log(0)
             double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
             c->at(i, j) = -(y_true.at(i, j) * std::log(p) + (1.0 - y_true.at(i, j)) * std::log(1.0 - p));
+          }
         }
-    }
-    // TODO: result matrix should be [1, 1] dimensional and be an average across all elements.
-    // 
+        // TODO: result matrix should be [1, 1] dimensional and be an average across all elements.
+      },
+      // backward
+      [](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
+
+        const auto& y_pred = ins[0];
+        const auto& y_true = ins[1];
+        //auto* c = &dval;
+        auto* c = out[0];
+
+        double epsilon = 1e-12;
+
+        for (int i = 0; i < y_pred.rows; i++) {
+          for (int j = 0; j < y_true.cols; j++) {
+            double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
+            c->at(i, j) = -(y_true.at(i, j) / p) + ((1.0 - y_true.at(i, j)) / (1.0 - p));
+          }
+        }
+
+        // We need to call this:
+        //args[0]->CalcDval(out[0]);
+      }
+    };
+
+
   }
 
-  //void CalcDval(const Matrix& dif) {
-  void CalcDval() override {
+  using Block::CalcDval;
+  void CalcDval(const Matrix& grad) {
     const auto& y_pred = args[0]->GetVal();
     const auto& y_true = args[1]->GetVal();
     auto* c = &dval;
@@ -418,5 +455,7 @@ public:
     args[0]->CalcDval(dval);
 
   }
+
+
 };
 
