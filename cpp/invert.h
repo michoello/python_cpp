@@ -169,33 +169,42 @@ public:
    }
 };
 
+struct FuncPair {
+  // Forward takes vector of input args, and pointer to result
+  using ForwardFn  = std::function<void(const std::vector<Matrix>&, Matrix*)>;
+  // Backward takes vector of input args, grads matrix, and vector of matrixes to write results to
+  using BackwardFn = std::function<void(const std::vector<Matrix>&, const Matrix&, const std::vector<Matrix*>&)>;
 
-
-struct MatMulFuncs {
-  static void forward(const std::vector<Matrix>& ins, Matrix* out) {
-    multiply_matrix(ins[0], ins[1], out);
-  }
-
-  static void backward(const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
-      multiply_matrix(ins[0].transpose(), grads, out[1]);
-      multiply_matrix(grads, ins[1].transpose(), out[0]);
-  }
+  ForwardFn forward;
+  BackwardFn backward;
 };
+
 
 // Matrix multiplication
 class MatMulBlock: public Block {
-protected:
+  FuncPair funcs;
 public:
   MatMulBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->GetVal().rows, a2->GetVal().cols) {
+    funcs = FuncPair{
+      // forward
+      [](const std::vector<Matrix>& ins, Matrix* out) {
+        multiply_matrix(ins[0], ins[1], out);
+      },
+      // backward
+      [](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
+        multiply_matrix(ins[0].transpose(), grads, out[1]);
+        multiply_matrix(grads, ins[1].transpose(), out[0]);
+      }
+    };
   }
 
   void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) override {
-    MatMulFuncs::forward(ins, out);
+    funcs.forward(ins, out);
   }
 
   void CalcDval(const Matrix& grads) {
-      // TODO: check dimensions
-      MatMulFuncs::backward({args[0]->GetVal(), args[1]->GetVal()}, grads, {&args[0]->dval, &args[1]->dval});
+    // TODO: check dimensions
+    funcs.backward({args[0]->GetVal(), args[1]->GetVal()}, grads, {&args[0]->dval, &args[1]->dval});
   }
 };
 
