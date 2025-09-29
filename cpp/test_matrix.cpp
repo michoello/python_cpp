@@ -2,6 +2,7 @@
 #include <cassert>
 #include <iostream>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <vector>
 #include <cstdlib>
@@ -143,8 +144,6 @@ TEST_CASE(random_matrix) {
     
 }
 
-
-
 template <typename T>
 bool approxEqual(T a, T b, double tol = 1e-3) {
     if constexpr (std::is_floating_point_v<T>) {
@@ -155,21 +154,23 @@ bool approxEqual(T a, T b, double tol = 1e-3) {
 }
 
 template <typename T>
-void assertEqualVectors(const std::vector<std::vector<T>>& got,
+bool assertEqualVectors(const std::vector<std::vector<T>>& got,
                         const std::vector<std::vector<T>>& expected,
-                        double tol = 1e-3)
+                        int round = 3)
 {
+    float tol = std::pow(10.0f, -round);
+
     if (got.size() != expected.size()) {
         std::cerr << "Assertion failed (different number of rows):" << got.size() << " vs " << expected.size();
         std::cerr << "\n";
-        std::exit(1);
+        return false;
     }
 
     for (size_t i = 0; i < got.size(); ++i) {
         if (got[i].size() != expected[i].size()) {
             std::cerr << "Assertion failed (different number of columns in row " << i << ")";
             std::cerr << "\n";
-            std::exit(1);
+						return false;
         }
         for (size_t j = 0; j < got[i].size(); ++j) {
             if (!approxEqual(got[i][j], expected[i][j], tol)) {
@@ -178,27 +179,31 @@ void assertEqualVectors(const std::vector<std::vector<T>>& got,
 
                 std::cerr << "Mismatch at (" << i << "," << j << "): "
                           << "expected " << expected[i][j]
-                          << " but got " << got[i][j]
+                          << " but got " << std::fixed << std::setprecision(round) << got[i][j] << std::defaultfloat
                           << " (tolerance " << tol << ")\n";
 
                 std::cerr << "Expected:\n";
                 for (const auto& row : expected) {
                     std::cerr << "  { ";
-                    for (const auto& val : row) std::cerr << val << " ";
+                    for (int i = 0; i < row.size(); ++i) {
+                       std::cerr << row[i] << (i < row.size() - 1  ? ", " : " ");
+                    }
                     std::cerr << "}\n";
                 }
 
                 std::cerr << "Got:\n";
                 for (const auto& row : got) {
                     std::cerr << "  { ";
-                    for (const auto& val : row) std::cerr << val << " ";
+                    for (int i = 0; i < row.size(); ++i) {
+                       std::cerr << row[i] << (i < row.size() - 1  ? ", " : " ");
+                    }
                     std::cerr << "}\n";
                 }
-
-                std::exit(1);
+								return false;
             }
         }
     }
+		return true;
 }
 
 
@@ -214,17 +219,17 @@ TEST_CASE(matmul) {
 
     MatMulBlock dc(&da, &db);
 
-    assertEqualVectors(da.GetVal().value(), {
+    CHECK(assertEqualVectors(da.GetVal().value(), {
       {1, 2, 3},
       {4, 5, 6},
-    });
+    }));
 
     dc.CalcVal();
 
-    assertEqualVectors(dc.GetVal().value(), {
+    CHECK(assertEqualVectors(dc.GetVal().value(), {
       { 38, 44, 50, 56 },
       { 83, 98, 113, 128 },
-    });
+    }));
 
     
 }
@@ -243,21 +248,21 @@ TEST_CASE(matmul_with_grads) {
     MatMulBlock dc(&da, &db);
 
     dc.CalcVal();
-    assertEqualVectors(dc.GetVal().value(), {
+    CHECK(assertEqualVectors(dc.GetVal().value(), {
       {15, 18, 21},
-    });
+    }));
 
     Matrix dif(1, 3);
     dif.set_data( {{12, 14, 16}});
 
     dc.CalcDval(dif);
-    assertEqualVectors(db.GetDval().value(), {
+    CHECK(assertEqualVectors(db.GetDval().value(), {
         {12, 14, 16}, {24, 28, 32}
-    });
+    }));
 
-    assertEqualVectors(da.GetDval().value(), {
+    CHECK(assertEqualVectors(da.GetDval().value(), {
         {172, 298}
-    });
+    }));
 
     // TODO: see test_mse_loss in test_hello.py and extend this test with loss
 
@@ -275,16 +280,16 @@ TEST_CASE(sqrt_matrix) {
     ma.set_data({{1, 2, 3}, {4, 5, 6}});
 
     dc2.CalcVal();
-    assertEqualVectors(dc2.GetVal().value(), {
+    CHECK(assertEqualVectors(dc2.GetVal().value(), {
       {1, 16, 81},
       {256, 625, 1296},
-    });
+    }));
 
     // dc is also calculated
-    assertEqualVectors(dc.GetVal().value(), {
+    CHECK(assertEqualVectors(dc.GetVal().value(), {
       {1, 4, 9},
       {16, 25, 36},
-    });
+    }));
 
     
 }
@@ -305,16 +310,16 @@ TEST_CASE(add_matrix) {
     AddBlock ds2(&ds1, &dc);
 
     ds2.CalcVal();
-    assertEqualVectors(ds2.GetVal().value(), {
+    CHECK(assertEqualVectors(ds2.GetVal().value(), {
       {6, 8, 10},
       {7, 9, 11},
-    });
+    }));
 
     // ds1 is also calculated
-    assertEqualVectors(ds1.GetVal().value(), {
+    CHECK(assertEqualVectors(ds1.GetVal().value(), {
       {5, 7, 9},
       {5, 7, 9},
-    });
+    }));
 
     
 }
@@ -332,10 +337,10 @@ TEST_CASE(dif_matrix) {
     DifBlock dd(&db, &da); // db - da
 
     dd.CalcVal();
-    assertEqualVectors(dd.GetVal().value(), {
+    CHECK(assertEqualVectors(dd.GetVal().value(), {
       {1, 1, 2},
       {4, 8, 15},
-    });
+    }));
 
     
 }
@@ -351,15 +356,15 @@ TEST_CASE(mul_el) {
 
     dc.CalcVal();
 
-    assertEqualVectors(db.GetVal().value(), {
+    CHECK(assertEqualVectors(db.GetVal().value(), {
       {2, 4, 6},
       {8, 10, 12},
-    });
+    }));
 
-    assertEqualVectors(dc.GetVal().value(), {
+    CHECK(assertEqualVectors(dc.GetVal().value(), {
       {-2, -4, -6},
       {-8, -10, -12},
-    });
+    }));
 
     
 }
@@ -374,15 +379,15 @@ TEST_CASE(sum_mat) {
 
     ds.CalcVal();
 
-    assertEqualVectors(ds.GetVal().value(), {
+    CHECK(assertEqualVectors(ds.GetVal().value(), {
       {21},
-    });
+    }));
 
     ds.CalcDval();
-    assertEqualVectors(da.GetDval().value(), {
+    CHECK(assertEqualVectors(da.GetDval().value(), {
       {1, 1, 1},
       {1, 1, 1},
-    });
+    }));
 
     
 }
@@ -403,9 +408,9 @@ TEST_CASE(sse) {
 
     ds.CalcVal();
 
-    assertEqualVectors(ds.GetVal().value(), {
+    CHECK(assertEqualVectors(ds.GetVal().value(), {
       {5},
-    });
+    }));
 
     
 }
@@ -427,34 +432,34 @@ TEST_CASE(sse_with_grads) {
 
     ds.CalcVal();
 
-    assertEqualVectors(ds.GetVal().value(), { {5} });
+    CHECK(assertEqualVectors(ds.GetVal().value(), { {5} }));
 
 
     // Calc derivatives
     ds.CalcDval();
 
     // Derivative of loss function is its value
-    assertEqualVectors(ds.GetDval().value(), {
+    CHECK(assertEqualVectors(ds.GetDval().value(), {
       {5},
-    });
+    }));
 
     // Derivative of its args
-    assertEqualVectors(dy.GetDval().value(), {
+    CHECK(assertEqualVectors(dy.GetDval().value(), {
       {2, -4},
-    });
+    }));
 
     dy.ApplyGrad(0.1);
-    assertEqualVectors(dy.GetVal().value(), {
+    CHECK(assertEqualVectors(dy.GetVal().value(), {
       {0.8, 2.4},
-    });
+    }));
 
     // Calc loss again
     ds.CalcVal();
 
     // Derivative of loss function is its value
-    assertEqualVectors(ds.GetDval().value(), {
+    CHECK(assertEqualVectors(ds.GetDval().value(), {
       {3.2},
-    });
+    }));
 
     
 }
@@ -477,16 +482,16 @@ TEST_CASE(sigmoid_with_grads) {
 
     sb.CalcVal();
 
-    assertEqualVectors(sb.GetVal().value(), {{0.527, 0.478, 0.468}});
+    CHECK(assertEqualVectors(sb.GetVal().value(), {{0.527, 0.478, 0.468}}));
 
     Matrix dif(1,1);/*TODO actual matrix */
     //sb.CalcDval(dif);
     sb.CalcDval();
     // TODO: add bce loss and check
     // see test_bce_loss in python tests
-    // assertEqualVectors(sb.GetDval().value(), {{ 0.527, -0.522, -0.0004 }});
+    // CHECK(assertEqualVectors(sb.GetDval().value(), {{ 0.527, -0.522, -0.0004 }}));
     //
-    assertEqualVectors(sb.GetDval().value(), {{ 0.2492, 0.2495, 0.2489 }});
+    CHECK(assertEqualVectors(sb.GetDval().value(), {{ 0.2492, 0.2495, 0.2489 }}));
 
     
 }
@@ -505,10 +510,10 @@ TEST_CASE(bce_with_grads) {
     BCEBlock bce(&ypred, &ytrue);
 
     bce.CalcVal();
-    assertEqualVectors(bce.GetVal().value(), {{0.749, 0.738, 0.691}});
+    CHECK(assertEqualVectors(bce.GetVal().value(), {{0.749, 0.738, 0.691}}));
     
     bce.CalcDval();
-    assertEqualVectors(bce.GetDval().value(), {{ 2.11416, -2.09205, 0 }});
+    CHECK(assertEqualVectors(bce.GetDval().value(), {{ 2.11416, -2.09205, 0 }}));
 
     
 }
@@ -540,53 +545,53 @@ TEST_CASE(full_layer_with_loss_with_grads) {
 
     // Forward
     bce.CalcVal();
-    assertEqualVectors(sb.GetVal().value(), {{0.527, 0.478, 0.468}});
-    assertEqualVectors(bce.GetVal().value(), {{0.75, 0.739, 0.691}});
+    CHECK(assertEqualVectors(sb.GetVal().value(), {{0.527, 0.478, 0.468}}));
+    CHECK(assertEqualVectors(bce.GetVal().value(), {{0.75, 0.739, 0.691}}));
 
     // Calc diff and check the loss values
     bce.CalcDval();
-    assertEqualVectors(bce.GetDval().value(), {{2.116, -2.094, -0.002}});
+    CHECK(assertEqualVectors(bce.GetDval().value(), {{2.116, -2.094, -0.002}}));
 
     // Make sure the gradient flows backwards
     // Check sigmoid diff
-    assertEqualVectors(sb.GetDval().value(), {{ 0.527, -0.522, -0.0004 }});
+    CHECK(assertEqualVectors(sb.GetDval().value(), {{ 0.527, -0.522, -0.0004 }}));
 
     // Check the matrix diff
-    assertEqualVectors(w.GetDval().value(), {
+    CHECK(assertEqualVectors(w.GetDval().value(), {
        {0.0527, -0.052, -4.543/100000},
        {-0.105, 0.104, 9.086/100000}
-    });
+    }));
     
     // TODO: apply grads to w, calc loss value and check that it is reduced
     // see test_bce_loss inpython
     //
     // Check that w values are still the same
-    assertEqualVectors(w.GetVal().value(), {
+    CHECK(assertEqualVectors(w.GetVal().value(), {
       {-0.1, 0.5, 0.3},
       {-0.6, 0.7, 0.8}
-    });
+    }));
 
     w.ApplyGrad(1.0);
  
     // Check that w values have changed
-    assertEqualVectors(w.GetVal().value(), {
+    CHECK(assertEqualVectors(w.GetVal().value(), {
       {-0.153, 0.552, 0.3},
       {-0.495, 0.596, 0.8}
-    });
+    }));
 
     // Recalculate the loss
     bce.CalcVal();
     // Assure it got smaller!
-    assertEqualVectors(sb.GetVal().value(), {{0.521, 0.484, 0.468}});
-    assertEqualVectors(bce.GetVal().value(), {{0.736, 0.726, 0.691}});
+    CHECK(assertEqualVectors(sb.GetVal().value(), {{0.521, 0.484, 0.468}}));
+    CHECK(assertEqualVectors(bce.GetVal().value(), {{0.736, 0.726, 0.691}}));
 
 
     // Update the inputs, and check that it also reduces the loss
     x.ApplyGrad(0.01);
-    assertEqualVectors(x.GetVal().value(), {{0.103, -0.193}});
+    CHECK(assertEqualVectors(x.GetVal().value(), {{0.103, -0.193}}));
 
     bce.CalcVal();
-    assertEqualVectors(bce.GetVal().value(), {{ 0.734, 0.723, 0.691}});
+    CHECK(assertEqualVectors(bce.GetVal().value(), {{ 0.734, 0.723, 0.691}}));
     
 }
 
@@ -595,21 +600,4 @@ TEST_CASE(full_layer_with_loss_with_grads) {
 
 int main(int argc, char** argv) {
     return run_tests(argc, argv);
-/*
-    test_multiply();
-    test_shared_data();
-    test_random();
-    test_matmul();
-    test_matmul_with_grads();
-    test_sqrt_matrix();
-    test_add_matrix();
-    test_mul_el();
-    test_dif_matrix();
-    test_sum_mat();
-    test_sse();
-    test_sse_with_grads();
-    test_sigmoid_with_grads();
-    test_bce_with_grads();
-    test_full_layer_with_loss_with_grads();
-*/
 }
