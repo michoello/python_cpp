@@ -290,6 +290,7 @@ protected:
   DifFu backward;
 public:
   ElFunBlock(Block *a, DifFu fwd, DifFu bwd) : Block({a}, a->GetVal().rows, a->GetVal().cols) {
+    backward = bwd;
     funcs = FuncPair{
       // forward
       [fwd](const std::vector<Matrix>& ins, Matrix* out) {
@@ -302,9 +303,11 @@ public:
     };
   }
 
-  void CalcDval() override {
+  using Block::CalcDval;
+  void CalcDval(const Matrix& grads) override {
     Funcs::for_each_el(args[0]->GetVal(), &this->dval, backward);
-    // TODO: args[0]->CalcDval();
+    mul_el_matrix(dval, grads, &dval);
+    args[0]->CalcDval(dval);
   }
 };
 
@@ -319,18 +322,6 @@ public:
 class SigmoidBlock: public ElFunBlock {
 public:
   SigmoidBlock(Block *a) : ElFunBlock(a, &Funcs::sigmoid, &Funcs::sigmoid_derivative) {
-      backward = &Funcs::sigmoid_derivative;
-  }
-
-
-  using ElFunBlock::CalcDval;
-  void CalcDval(const Matrix& grads) override {
-     assert(grads.rows == dval.rows && "Rows not equal");
-     assert(grads.cols == dval.cols && "Cols not equal");
-     this->CalcDval();
-     mul_el_matrix(dval, grads, &dval);
-
-     args[0]->CalcDval(dval);
   }
 };
 
