@@ -166,11 +166,14 @@ public:
     std::vector<Matrix> ins;
     std::vector<Matrix*> outs;
     // TODO: create and fill these vectors in constructor
+    
     for(auto* arg: args) {
       ins.push_back(arg->val);
+      // TODO: outs here should be not 'dvals', but the same sized matrices which will be then passed upstream as grads
       outs.push_back(&arg->dval);
     } 
     funcs.backward(ins, grads, outs);
+
     for(auto* arg: args) {
         arg->CalcDval(arg->dval);
     } 
@@ -206,6 +209,7 @@ public:
 
    // TODO: remove it
    virtual void CalcDval(const Matrix& grads) {
+      dval = grads;
    }
 };
 

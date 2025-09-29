@@ -7,8 +7,96 @@
 #include <cstdlib>
 #include <type_traits>
 
+//-------------------------------------------------------------
+// Tiny unittests libraryset
+//
+#include <iostream>
+#include <vector>
+#include <string>
+#include <functional>
 
-void test_multiply() {
+// Shared state per running test
+inline int __checks_failed = 0;
+inline int __checks_total  = 0;
+
+// Store all registered tests
+struct TestCase {
+    std::string name;
+    std::function<void()> func;
+};
+
+inline std::vector<TestCase>& get_tests() {
+    static std::vector<TestCase> tests;
+    return tests;
+}
+
+// Register a test case
+#define TEST_CASE(name) \
+    void name(); \
+    struct name##_registrar { \
+        name##_registrar() { get_tests().push_back({#name, name}); } \
+    }; \
+    static name##_registrar name##_instance; \
+    void name()
+
+// Assertion macro
+#define CHECK(agent) \
+    do { \
+        ++__checks_total; \
+        if (!(agent)) { \
+            ++__checks_failed; \
+            std::cerr << "    Failed: " #agent \
+                      << " at " << __FILE__ << ":" << __LINE__ << "\n"; \
+        } \
+    } while (0)
+
+// Run a single test
+inline bool run_test(const TestCase& t) {
+    __checks_failed = 0;
+    __checks_total  = 0;
+    std::cout <<     "[     ... ] " << t.name << "\n";
+    t.func();
+    if (__checks_failed == 0) {
+        std::cout << "[ ✅ PASS ] " << t.name
+                  << " (" << __checks_total << " checks)\n";
+        return true;
+    } else {
+        std::cout << "[ ❌ FAIL ] " << t.name
+                  << " (" << __checks_failed << "/" 
+                  << __checks_total << " failed)\n";
+        return false;
+    }
+}
+
+// Run all or one test based on CLI
+inline int run_tests(int argc, char** argv) {
+    if (argc > 1) {
+        std::string filter = argv[1];
+        for (auto& t : get_tests()) {
+            if (t.name == filter) {
+                return run_test(t) ? 0 : 1;
+            }
+        }
+        std::cerr << "No test case named '" << filter << "'\n";
+        return 1;
+    } else {
+        int total_failed = 0;
+        for (auto &t : get_tests()) {
+            if (!run_test(t)) {
+                ++total_failed;
+            }
+        }
+        std::cout << "\n=== Summary: " 
+                  << (get_tests().size() - total_failed) << " passed, "
+                  << total_failed << " failed ===\n";
+        return total_failed == 0 ? 0 : 1;
+    }
+}
+
+
+//-------------------------------------------------------------
+
+TEST_CASE(multiply) {
     Matrix A(2, 2);
     Matrix B(2, 2);
     A.set_data({{1, 2}, {3, 4}});
@@ -22,10 +110,10 @@ void test_multiply() {
     assert(C.at(1,0) == 43);
     assert(C.at(1,1) == 50);
 
-    std::cout << "Multiply test passed ✅\n";
+    
 }
 
-void test_shared_data() {
+TEST_CASE(shared_data) {
     Matrix A(2, 2);
 		A.set_data({{ 1, 2}, {3, 4}});
 
@@ -38,11 +126,11 @@ void test_shared_data() {
     assert(B.at(0,0) == 1);
     assert(B.at(1,1) == 5);
 
-    std::cout << "Shared data passed ✅\n";
+    
 }
 
 
-void test_random() {
+TEST_CASE(random_matrix) {
     Matrix A(10, 15);
     A.fill_uniform();
     for(size_t r = 0; r < 10; ++r) {
@@ -52,7 +140,7 @@ void test_random() {
         }
     }
 
-    std::cout << "Random test passed ✅\n";
+    
 }
 
 
@@ -114,7 +202,7 @@ void assertEqualVectors(const std::vector<std::vector<T>>& got,
 }
 
 
-void test_matmul() {
+TEST_CASE(matmul) {
 
     Matrix ma(2, 3);
     ma.set_data({{1, 2, 3}, {4, 5, 6}});
@@ -138,11 +226,11 @@ void test_matmul() {
       { 83, 98, 113, 128 },
     });
 
-    std::cout << "MatMul test passed ✅\n";
+    
 }
 
 
-void test_matmul_with_grads() {
+TEST_CASE(matmul_with_grads) {
 
     Matrix ma(1, 2);
     ma.set_data({{1, 2}});
@@ -173,11 +261,11 @@ void test_matmul_with_grads() {
 
     // TODO: see test_mse_loss in test_hello.py and extend this test with loss
 
-    std::cout << "MatMul2 test passed ✅\n";
+    
 }
 
 
-void test_sqrt_matrix() {
+TEST_CASE(sqrt_matrix) {
     Matrix ma(2, 3);
     DataBlock da(ma);
 
@@ -198,10 +286,10 @@ void test_sqrt_matrix() {
       {16, 25, 36},
     });
 
-    std::cout << "Sqrt matrix test passed ✅\n";
+    
 }
 
-void test_add_matrix() {
+TEST_CASE(add_matrix) {
     Matrix ma(2, 3);
     Matrix mb(2, 3);
     Matrix mc(2, 3);
@@ -228,11 +316,11 @@ void test_add_matrix() {
       {5, 7, 9},
     });
 
-    std::cout << "Sum matrix test passed ✅\n";
+    
 }
 
 
-void test_dif_matrix() {
+TEST_CASE(dif_matrix) {
     Matrix ma(2, 3);
     Matrix mb(2, 3);
     DataBlock da(ma);
@@ -249,10 +337,10 @@ void test_dif_matrix() {
       {4, 8, 15},
     });
 
-    std::cout << "Differences between 2 matrices test passed ✅\n";
+    
 }
 
-void test_mul_el() {
+TEST_CASE(mul_el) {
     Matrix ma(2, 3);
     DataBlock da(ma);
 
@@ -273,10 +361,10 @@ void test_mul_el() {
       {-8, -10, -12},
     });
 
-    std::cout << "Mul el matrix test passed ✅\n";
+    
 }
 
-void test_sum_mat() {
+TEST_CASE(sum_mat) {
     Matrix ma(2, 3);
     DataBlock da(ma);
 
@@ -296,12 +384,12 @@ void test_sum_mat() {
       {1, 1, 1},
     });
 
-    std::cout << "Sum matrix test passed ✅\n";
+    
 }
 
 
 
-void test_sse() {
+TEST_CASE(sse) {
     Matrix ma(2, 3);
     DataBlock da(ma);
     ma.set_data({{1, 2, 3}, {4, 5, 6}});
@@ -319,11 +407,11 @@ void test_sse() {
       {5},
     });
 
-    std::cout << "SSE matrix test passed ✅\n";
+    
 }
 
 
-void test_sse_with_grads() {
+TEST_CASE(sse_with_grads) {
     // "output"
     Matrix my(1, 2);
     DataBlock dy(my);
@@ -368,11 +456,11 @@ void test_sse_with_grads() {
       {3.2},
     });
 
-    std::cout << "SSE matrix test with_gradients passed ✅\n";
+    
 }
 
 
-void test_sigmoid_with_grads() {
+TEST_CASE(sigmoid_with_grads) {
 
     Matrix mx(1, 2);
     DataBlock x(mx);
@@ -400,13 +488,13 @@ void test_sigmoid_with_grads() {
     //
     assertEqualVectors(sb.GetDval().value(), {{ 0.2492, 0.2495, 0.2489 }});
 
-    std::cout << "Sigmoid test with gradients passed ✅\n";
+    
 }
 
 
 // see test_bce_loss in python tests
 
-void test_bce_with_grads() {
+TEST_CASE(bce_with_grads) {
     Matrix mypred(1, 3);
     DataBlock ypred(mypred);
     mypred.set_data({{0.527, 0.478, 0.468}});
@@ -422,12 +510,12 @@ void test_bce_with_grads() {
     bce.CalcDval();
     assertEqualVectors(bce.GetDval().value(), {{ 2.11416, -2.09205, 0 }});
 
-    std::cout << "BCE test with gradients passed ✅\n";
+    
 }
 
 
 
-void test_full_layer_with_loss_with_grads() {
+TEST_CASE(full_layer_with_loss_with_grads) {
     Matrix mx(1, 2);
     DataBlock x(mx);
     mx.set_data({{0.1, -0.2}});
@@ -499,16 +587,15 @@ void test_full_layer_with_loss_with_grads() {
 
     bce.CalcVal();
     assertEqualVectors(bce.GetVal().value(), {{ 0.734, 0.723, 0.691}});
-
-
-
-    std::cout << "Full layer test with gradients passed ✅\n";
+    
 }
 
 
 
 
-int main() {
+int main(int argc, char** argv) {
+    return run_tests(argc, argv);
+/*
     test_multiply();
     test_shared_data();
     test_random();
@@ -524,4 +611,5 @@ int main() {
     test_sigmoid_with_grads();
     test_bce_with_grads();
     test_full_layer_with_loss_with_grads();
+*/
 }
