@@ -265,6 +265,10 @@ public:
     return s * (1.0 - s);
   }
 
+  static double tbd(double x) {
+    return 0;
+  }
+
   static DifFu get_mul_el(double n) {
     return [n](double d) {
       return n * d;
@@ -283,16 +287,21 @@ public:
 
 class ElFunBlock: public Block {
 protected:
-  DifFu forward;
   DifFu backward;
 public:
-  ElFunBlock(Block *a, DifFu f) : Block({a}, a->GetVal().rows, a->GetVal().cols) {
-     forward = f; 
+  ElFunBlock(Block *a, DifFu fwd, DifFu bwd) : Block({a}, a->GetVal().rows, a->GetVal().cols) {
+    funcs = FuncPair{
+      // forward
+      [fwd](const std::vector<Matrix>& ins, Matrix* out) {
+         Funcs::for_each_el(ins[0], out, fwd);
+      },
+      // backward
+      [bwd](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& outs) {
+      //  Funcs::for_each_el(ins[0], &grads, bwd);
+      }
+    };
   }
 
-  void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) override {
-    Funcs::for_each_el(ins[0], out, forward);
-  }
   void CalcDval() override {
     Funcs::for_each_el(args[0]->GetVal(), &this->dval, backward);
     // TODO: args[0]->CalcDval();
@@ -302,14 +311,14 @@ public:
 
 class SqrtBlock: public ElFunBlock {
 public:
-  SqrtBlock(Block *a) : ElFunBlock(a, &Funcs::square) {
+  SqrtBlock(Block *a) : ElFunBlock(a, &Funcs::square, &Funcs::tbd) {
   }
 };
 
 
 class SigmoidBlock: public ElFunBlock {
 public:
-  SigmoidBlock(Block *a) : ElFunBlock(a, &Funcs::sigmoid) {
+  SigmoidBlock(Block *a) : ElFunBlock(a, &Funcs::sigmoid, &Funcs::sigmoid_derivative) {
       backward = &Funcs::sigmoid_derivative;
   }
 
@@ -327,7 +336,7 @@ public:
 
 class MulElBlock: public ElFunBlock {
 public:
-  MulElBlock(Block *a, double n) : ElFunBlock(a, Funcs::get_mul_el(n)) {
+  MulElBlock(Block *a, double n) : ElFunBlock(a, Funcs::get_mul_el(n), &Funcs::tbd) {
   }
 };
 
