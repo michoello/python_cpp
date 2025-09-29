@@ -163,7 +163,14 @@ public:
   }
 
   virtual void CalcDval(const Matrix& grads) {
-    funcs.backward({args[0]->GetVal(), args[1]->GetVal()}, grads, {&args[0]->dval, &args[1]->dval});
+    std::vector<Matrix> ins;
+    std::vector<Matrix*> outs;
+    // TODO: create and fill these vectors in constructor
+    for(auto* arg: args) {
+      ins.push_back(arg->val);
+      outs.push_back(&arg->dval);
+    } 
+    funcs.backward(ins, grads, outs);
     for(auto* arg: args) {
         arg->CalcDval(arg->dval);
     } 
@@ -336,28 +343,29 @@ public:
 class SumBlock: public Block {
 public:
   SumBlock(Block *a) : Block({a}, 1, 1) {
-  }
-
-  void CalcValImpl(const std::vector<Matrix>& ins, Matrix* out) override {
-    float s = 0.0;
-    for (int i = 0; i < ins[0].rows; i++) {
-        for (int j = 0; j < ins[0].cols; j++) {
-            s += ins[0].at(i, j);
+    funcs = FuncPair{
+      // forward
+      [](const std::vector<Matrix>& ins, Matrix* out) {
+        float s = 0.0;
+        for (int i = 0; i < ins[0].rows; i++) {
+           for (int j = 0; j < ins[0].cols; j++) {
+              s += ins[0].at(i, j);
+           }
         }
-    }
-    val.at(0, 0) = s;
-  }
+        out->at(0, 0) = s;
+      },
+      // backward
+      [](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& outs) {
+        double grad = grads.at(0, 0);
+        for(int r = 0; r < ins[0].rows; ++r) {
+           for(int c = 0; c < ins[0].cols; ++c) {
+               outs[0]->at(r, c) = grad;
+           }
+        }
+      }
+    };
 
-  void CalcDval() {
-    int rows = args[0]->GetVal().rows;
-    int cols = args[0]->GetVal().cols;
-    for(int r = 0; r < rows; ++r) {
-       for(int c = 0; c < cols; ++c) {
-           args[0]->dval.at(r, c) = 1;
-       }
-    }
   }
-
 };
 
 // Sum Square Error
@@ -414,7 +422,8 @@ public:
       },
       // backward
       [](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
-
+/*
+        // TODO
         const auto& y_pred = ins[0];
         const auto& y_true = ins[1];
         //auto* c = &dval;
@@ -428,9 +437,7 @@ public:
             c->at(i, j) = -(y_true.at(i, j) / p) + ((1.0 - y_true.at(i, j)) / (1.0 - p));
           }
         }
-
-        // We need to call this:
-        //args[0]->CalcDval(out[0]);
+*/
       }
     };
 
@@ -438,22 +445,26 @@ public:
   }
 
   using Block::CalcDval;
-  void CalcDval(const Matrix& grad) {
+  void CalcDval(const Matrix& grads) {
+
     const auto& y_pred = args[0]->GetVal();
     const auto& y_true = args[1]->GetVal();
-    auto* c = &dval;
+    //auto* c = &dval;
+    //auto* c = &args[0]->dval;
 
     double epsilon = 1e-12;
 
     for (int i = 0; i < y_pred.rows; i++) {
         for (int j = 0; j < y_true.cols; j++) {
             double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
-            c->at(i, j) = -(y_true.at(i, j) / p) + ((1.0 - y_true.at(i, j)) / (1.0 - p));
+            double t = y_true.at(i, j);
+            dval.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
+            // TODO: remove line above and uncomment next
+            //args[0]->dval.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
         }
     }
 
     args[0]->CalcDval(dval);
-
   }
 
 
