@@ -96,13 +96,12 @@ public:
   Matrix transpose() const {
      Matrix r(cols, rows);
      for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                r.at(j, i) = at(i, j);
-            }
+         for (int j = 0; j < cols; j++) {
+            r.at(j, i) = at(i, j);
+         }
      }
      return r;
   }
-
 };
 
 struct FuncPair {
@@ -123,17 +122,9 @@ struct Block {
 
   Block(const std::vector<Block*>& argz, int r, int c) : args(argz), val(r, c), grads_in(r, c) {
       for(auto* arg: args) {
-         ins.push_back(arg->GetVal());
+         ins.push_back(arg->val);
          outs.push_back(&arg->grads_in);
       }
-  }
-
-  const Matrix& GetVal() const {
-    return val;
-  }
-
-  Matrix& GetVal() {
-    return val;
   }
 
   void CalcVal() {
@@ -160,18 +151,11 @@ struct Block {
     } 
   }
 
-  Matrix& GetDval() {
-     return grads_in;
-  }
-  const Matrix& GetDval() const {
-     return grads_in;
-  }
-
   void ApplyGrad(float learning_rate) {
     for (int i = 0; i < val.rows; i++) {
-        for (int j = 0; j < val.cols; j++) {
-            val.at(i, j) -= grads_in.at(i, j) * learning_rate;
-        }
+      for (int j = 0; j < val.cols; j++) {
+         val.at(i, j) -= grads_in.at(i, j) * learning_rate;
+      }
     }
   }
 };
@@ -193,7 +177,7 @@ public:
 // Matrix multiplication
 class MatMulBlock: public Block {
 public:
-  MatMulBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->GetVal().rows, a2->GetVal().cols) {
+  MatMulBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->val.rows, a2->val.cols) {
     funcs = FuncPair{
       // forward
       [](const std::vector<Matrix>& ins, Matrix* out) {
@@ -210,7 +194,7 @@ public:
 
 class AddBlock: public Block {
 public:
-  AddBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->GetVal().rows, a1->GetVal().cols) {
+  AddBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->val.rows, a1->val.cols) {
      // TODO: check dimensions
      funcs = FuncPair{
        [](const std::vector<Matrix>& ins, Matrix* out) {
@@ -270,7 +254,7 @@ class ElFunBlock: public Block {
 protected:
   DifFu backward;
 public:
-  ElFunBlock(Block *a, DifFu fwd, DifFu bwd) : Block({a}, a->GetVal().rows, a->GetVal().cols) {
+  ElFunBlock(Block *a, DifFu fwd, DifFu bwd) : Block({a}, a->val.rows, a->val.cols) {
     backward = bwd;
     funcs = FuncPair{
       // forward
@@ -362,7 +346,7 @@ public:
      grads_in = val;
      auto* dblock =  new MulElBlock(new DifBlock(arg1, arg2), 2);
      dblock->CalcVal();
-     arg1->grads_in = dblock->GetVal();
+     arg1->grads_in = dblock->val;
   } 
 };
 
@@ -373,7 +357,7 @@ public:
 class BCEBlock: public Block {
 protected:
 public:
-  BCEBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->GetVal().rows, a1->GetVal().cols) {
+  BCEBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->val.rows, a1->val.cols) {
     assert(a1->val.rows == a2->val.rows && "Rows not equal");
     assert(a1->val.cols == a2->val.cols && "Cols not equal");
 
@@ -382,7 +366,7 @@ public:
       [](const std::vector<Matrix>& ins, Matrix* out) {
 				const auto& y_pred = ins[0];
 				const auto& y_true = ins[1];
-        double epsilon = 1e-15; // small value to avoid log(0)
+        double epsilon = 1e-12; // small value to avoid log(0)
         for (int i = 0; i < y_pred.rows; i++) {
         	for (int j = 0; j < y_true.cols; j++) {
 
@@ -400,15 +384,14 @@ public:
         const auto& y_true = ins[1];
         double epsilon = 1e-12;
         for (int i = 0; i < y_pred.rows; i++) {
-            for (int j = 0; j < y_true.cols; j++) {
-                double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
-                double t = y_true.at(i, j);
-                out[0]->at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
-            }
+          for (int j = 0; j < y_true.cols; j++) {
+             double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
+             double t = y_true.at(i, j);
+             out[0]->at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
+          }
         }
       }
     };
   }
-
 };
 
