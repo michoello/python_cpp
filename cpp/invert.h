@@ -309,9 +309,10 @@ public:
 
   using Block::CalcGrad;
   void CalcGrad(const Matrix& grads) override {
-    Funcs::for_each_el(args[0]->GetVal(), &this->grads_in, backward);
-    mul_el_matrix(grads_in, grads, &grads_in);
-    args[0]->CalcGrad(grads_in);
+    Matrix& grads_out = args[0]->GetDval();
+    Funcs::for_each_el(args[0]->GetVal(), &grads_out, backward);
+    mul_el_matrix(grads_out, grads, &grads_out);
+    args[0]->CalcGrad(grads_out);
   }
 };
 
@@ -454,7 +455,7 @@ public:
     const auto& y_pred = args[0]->GetVal();
     const auto& y_true = args[1]->GetVal();
     //auto* c = &grads_in;
-    //auto* c = &args[0]->grads_in;
+    auto* c = &args[0]->grads_in;
 
     double epsilon = 1e-12;
 
@@ -462,13 +463,14 @@ public:
         for (int j = 0; j < y_true.cols; j++) {
             double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
             double t = y_true.at(i, j);
-            grads_in.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
+            //grads_in.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
+            c->at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
             // TODO: remove line above and uncomment next
             //args[0]->grads_in.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
         }
     }
 
-    args[0]->CalcGrad(grads_in);
+    args[0]->CalcGrad(*c);
   }
 
 
