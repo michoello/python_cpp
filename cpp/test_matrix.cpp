@@ -255,7 +255,7 @@ TEST_CASE(matmul_with_grads) {
     Matrix dif(1, 3);
     dif.set_data( {{12, 14, 16}});
 
-    dc.CalcDval(dif);
+    dc.CalcGrad(dif);
     CHECK(assertEqualVectors(db.GetDval().value(), {
         {12, 14, 16}, {24, 28, 32}
     }));
@@ -378,12 +378,11 @@ TEST_CASE(sum_mat) {
     SumBlock ds(&da);
 
     ds.CalcVal();
-
     CHECK(assertEqualVectors(ds.GetVal().value(), {
       {21},
     }));
 
-    ds.CalcDval();
+    ds.CalcGrad();
     CHECK(assertEqualVectors(da.GetDval().value(), {
       {1, 1, 1},
       {1, 1, 1},
@@ -436,7 +435,7 @@ TEST_CASE(sse_with_grads) {
 
 
     // Calc derivatives
-    ds.CalcDval();
+    ds.CalcGrad();
 
     // Derivative of loss function is its value
     CHECK(assertEqualVectors(ds.GetDval().value(), {
@@ -485,8 +484,8 @@ TEST_CASE(sigmoid_with_grads) {
     CHECK(assertEqualVectors(sb.GetVal().value(), {{0.527, 0.478, 0.468}}));
 
     Matrix dif(1,1);/*TODO actual matrix */
-    //sb.CalcDval(dif);
-    sb.CalcDval();
+    //sb.CalcGrad(dif);
+    sb.CalcGrad();
     // TODO: add bce loss and check
     // see test_bce_loss in python tests
     // CHECK(assertEqualVectors(sb.GetDval().value(), {{ 0.527, -0.522, -0.0004 }}));
@@ -512,7 +511,7 @@ TEST_CASE(bce_with_grads) {
     bce.CalcVal();
     CHECK(assertEqualVectors(bce.GetVal().value(), {{0.749, 0.738, 0.691}}));
     
-    bce.CalcDval();
+    bce.CalcGrad();
     CHECK(assertEqualVectors(bce.GetDval().value(), {{ 2.11416, -2.09205, 0 }}));
 
     
@@ -549,7 +548,7 @@ TEST_CASE(full_layer_with_loss_with_grads) {
     CHECK(assertEqualVectors(bce.GetVal().value(), {{0.75, 0.739, 0.691}}));
 
     // Calc diff and check the loss values
-    bce.CalcDval();
+    bce.CalcGrad();
     CHECK(assertEqualVectors(bce.GetDval().value(), {{2.116, -2.094, -0.002}}));
 
     // Make sure the gradient flows backwards

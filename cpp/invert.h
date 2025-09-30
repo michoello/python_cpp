@@ -124,9 +124,9 @@ public:
   std::vector<Block*> args;
   FuncPair funcs;
   Matrix val;
-  Matrix dval;
+  Matrix grads_in;
 
-  Block(const std::vector<Block*>& argz, int r, int c) : args(argz), val(r, c), dval(r, c) {
+  Block(const std::vector<Block*>& argz, int r, int c) : args(argz), val(r, c), grads_in(r, c) {
   }
 
   const Matrix& GetVal() const {
@@ -152,44 +152,44 @@ public:
 		funcs.forward(ins, out);
   }
 
-  virtual void CalcDval() {
-     Matrix ones(dval.rows, dval.cols); // !!
+  virtual void CalcGrad() {
+     Matrix ones(grads_in.rows, grads_in.cols); // !!
      for (int i = 0; i < ones.rows; i++) {
       	for (int j = 0; j < ones.cols; j++) {
             ones.at(i, j) = 1;
         }
      }
-     CalcDval(ones);
+     CalcGrad(ones);
   }
 
-  virtual void CalcDval(const Matrix& grads) {
+  virtual void CalcGrad(const Matrix& grads) {
     std::vector<Matrix> ins;
     std::vector<Matrix*> outs;
     // TODO: create and fill these vectors in constructor
     
     for(auto* arg: args) {
       ins.push_back(arg->val);
-      // TODO: outs here should be not 'dvals', but the same sized matrices which will be then passed upstream as grads
-      outs.push_back(&arg->dval);
+      // TODO: outs here should be not 'grads_ins', but the same sized matrices which will be then passed upstream as grads
+      outs.push_back(&arg->grads_in);
     } 
     funcs.backward(ins, grads, outs);
 
     for(auto* arg: args) {
-        arg->CalcDval(arg->dval);
+        arg->CalcGrad(arg->grads_in);
     } 
   }
 
   Matrix& GetDval() {
-     return dval;
+     return grads_in;
   }
   const Matrix& GetDval() const {
-     return dval;
+     return grads_in;
   }
 
   void ApplyGrad(float learning_rate) {
     for (int i = 0; i < val.rows; i++) {
         for (int j = 0; j < val.cols; j++) {
-            val.at(i, j) -= dval.at(i, j) * learning_rate;
+            val.at(i, j) -= grads_in.at(i, j) * learning_rate;
         }
     }
 
@@ -208,8 +208,8 @@ public:
    }
 
    // TODO: remove it
-   virtual void CalcDval(const Matrix& grads) {
-      dval = grads;
+   virtual void CalcGrad(const Matrix& grads) {
+      grads_in = grads;
    }
 };
 
@@ -307,11 +307,11 @@ public:
     };
   }
 
-  using Block::CalcDval;
-  void CalcDval(const Matrix& grads) override {
-    Funcs::for_each_el(args[0]->GetVal(), &this->dval, backward);
-    mul_el_matrix(dval, grads, &dval);
-    args[0]->CalcDval(dval);
+  using Block::CalcGrad;
+  void CalcGrad(const Matrix& grads) override {
+    Funcs::for_each_el(args[0]->GetVal(), &this->grads_in, backward);
+    mul_el_matrix(grads_in, grads, &grads_in);
+    args[0]->CalcGrad(grads_in);
   }
 };
 
@@ -387,11 +387,11 @@ public:
      arg2 = y_true;
   }
   
-  void CalcDval() override {
-     dval = val;
+  void CalcGrad() override {
+     grads_in = val;
      auto* dblock =  new MulElBlock(new DifBlock(arg1, arg2), 2);
      dblock->CalcVal();
-     arg1->dval = dblock->GetVal();
+     arg1->grads_in = dblock->GetVal();
   } 
 };
 
@@ -430,7 +430,7 @@ public:
         // TODO
         const auto& y_pred = ins[0];
         const auto& y_true = ins[1];
-        //auto* c = &dval;
+        //auto* c = &grads_in;
         auto* c = out[0];
 
         double epsilon = 1e-12;
@@ -448,13 +448,13 @@ public:
 
   }
 
-  using Block::CalcDval;
-  void CalcDval(const Matrix& grads) {
+  using Block::CalcGrad;
+  void CalcGrad(const Matrix& grads) {
 
     const auto& y_pred = args[0]->GetVal();
     const auto& y_true = args[1]->GetVal();
-    //auto* c = &dval;
-    //auto* c = &args[0]->dval;
+    //auto* c = &grads_in;
+    //auto* c = &args[0]->grads_in;
 
     double epsilon = 1e-12;
 
@@ -462,13 +462,13 @@ public:
         for (int j = 0; j < y_true.cols; j++) {
             double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
             double t = y_true.at(i, j);
-            dval.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
+            grads_in.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
             // TODO: remove line above and uncomment next
-            //args[0]->dval.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
+            //args[0]->grads_in.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
         }
     }
 
-    args[0]->CalcDval(dval);
+    args[0]->CalcGrad(grads_in);
   }
 
 
