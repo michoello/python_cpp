@@ -29,16 +29,7 @@ public:
     // Constructor with rows, cols (zero initialized)
     Matrix(int r, int c) : rows(r), cols(c), data(std::make_shared<std::vector<double>>(r * c, 0.0)) {}
 
-    Matrix(const Matrix& other) {
-       rows = other.rows;
-       cols = other.cols;
-       data = other.data;
-		}
-
-    // TODO: remove it
-    Matrix(const std::vector<std::vector<double>>& vals) {
-        set_data(vals);
-    }
+    Matrix(const Matrix& other) = default;
 
     // Constructor with values (nested vector)
     void set_data(const std::vector<std::vector<double>>& vals) {
@@ -50,15 +41,6 @@ public:
             }
         }
     }
-
-    void print() const {
-       for (int r=0; r < rows; ++r) {
-          for(int c=0; c < cols; ++c) {
-              std::cout << at(r, c) << " ";
-          }
-          std::cout << "\n";
-       }
-		}
 
     void fill_uniform() {
       // Random engine
@@ -251,11 +233,8 @@ public:
 };
 
 class ElFunBlock: public Block {
-protected:
-  DifFu backward;
 public:
   ElFunBlock(Block *a, DifFu fwd, DifFu bwd) : Block({a}, a->val.rows, a->val.cols) {
-    backward = bwd;
     funcs = FuncPair{
       // forward
       [fwd](const std::vector<Matrix>& ins, Matrix* out) {
@@ -327,29 +306,32 @@ public:
   }
 };
 
-// Sum Square Error
-// TODO: this inheritance is no good. Rework this block
-class SSEBlock: public SumBlock {
-  Block *arg1; // model output
-  Block *arg2; // labels 
 
+class SSEBlock: public Block {
 public:
-
-  SSEBlock(Block *a, Block *y_true) : SumBlock(new SqrtBlock(new DifBlock(a, y_true))) {
-     //args.push_back(a);  // model output
-     //args.push_back(y_true);  // labels
-     arg1 = a;
-     arg2 = y_true;
+  SSEBlock(Block* a1, Block* a2) : Block({a1, a2}, 1, 1) {
+    funcs = FuncPair{
+      // forward
+      [](const std::vector<Matrix>& ins, Matrix* out) {
+        float s = 0.0;
+        for (int i = 0; i < ins[0].rows; i++) {
+           for (int j = 0; j < ins[0].cols; j++) {
+              s += Funcs::square(ins[1].at(i, j) - ins[0].at(i, j));
+           }
+        }
+        out->at(0, 0) = s;
+      },
+      // backward
+      [](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
+        for (int i = 0; i < ins[0].rows; i++) {
+           for (int j = 0; j < ins[0].cols; j++) {
+              out[0]->at(i, j) = 2* (ins[0].at(i, j) - ins[1].at(i, j));
+           }
+        }
+      }
+    };
   }
-  
-  void CalcGrad() override {
-     grads_in = val;
-     auto* dblock =  new MulElBlock(new DifBlock(arg1, arg2), 2);
-     dblock->CalcVal();
-     arg1->grads_in = dblock->val;
-  } 
 };
-
 
 // Binary Cross Enthropy
 // TODO: calc average as a single value. Currently it is consistent with 
