@@ -208,14 +208,11 @@ bool assertEqualVectors(const std::vector<std::vector<T>>& got,
 
 
 TEST_CASE(matmul) {
+    DataBlock da(2, 3);
+    da.val.set_data({{1, 2, 3}, {4, 5, 6}});
 
-    Matrix ma(2, 3);
-    ma.set_data({{1, 2, 3}, {4, 5, 6}});
-    Matrix mb(3, 4);
-    mb.set_data({{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}});
-
-    DataBlock da(ma);
-    DataBlock db(mb);
+    DataBlock db(3, 4);
+    db.val.set_data({{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}});
 
     MatMulBlock dc(&da, &db);
 
@@ -235,13 +232,11 @@ TEST_CASE(matmul) {
 
 TEST_CASE(matmul_with_grads) {
 
-    Matrix ma(1, 2);
-    ma.set_data({{1, 2}});
-    Matrix mb(2, 3);
-    mb.set_data({{3, 4, 5}, { 6, 7, 8}});
+    DataBlock da(1, 2);
+    da.val.set_data({{1, 2}});
 
-    DataBlock da(ma);
-    DataBlock db(mb);
+    DataBlock db(2, 3);
+    db.val.set_data({{3, 4, 5}, { 6, 7, 8}});
 
     MatMulBlock dc(&da, &db);
 
@@ -269,13 +264,12 @@ TEST_CASE(matmul_with_grads) {
 
 
 TEST_CASE(sqrt_matrix) {
-    Matrix ma(2, 3);
-    DataBlock da(ma);
+    DataBlock da(2, 3);
 
     SqrtBlock dc(&da);
     SqrtBlock dc2(&dc);
 
-    ma.set_data({{1, 2, 3}, {4, 5, 6}});
+    da.val.set_data({{1, 2, 3}, {4, 5, 6}});
 
     dc2.CalcVal();
     CHECK(assertEqualVectors(dc2.val.value(), {
@@ -291,16 +285,13 @@ TEST_CASE(sqrt_matrix) {
 }
 
 TEST_CASE(add_matrix) {
-    Matrix ma(2, 3);
-    Matrix mb(2, 3);
-    Matrix mc(2, 3);
-    DataBlock da(ma);
-    DataBlock db(mb);
-    DataBlock dc(mc);
+    DataBlock da(2, 3);
+    DataBlock db(2, 3);
+    DataBlock dc(2, 3);
 
-    ma.set_data({{1, 2, 3}, {4, 5, 6}});
-    mb.set_data({{4, 5, 6}, {1, 2, 3 }});
-    mc.set_data({{1, 1, 1}, {2, 2, 2}});
+    da.val.set_data({{1, 2, 3}, {4, 5, 6}});
+    db.val.set_data({{4, 5, 6}, {1, 2, 3 }});
+    dc.val.set_data({{1, 1, 1}, {2, 2, 2}});
 
     AddBlock ds1(&da, &db);
     AddBlock ds2(&ds1, &dc);
@@ -320,13 +311,11 @@ TEST_CASE(add_matrix) {
 
 
 TEST_CASE(dif_matrix) {
-    Matrix ma(2, 3);
-    Matrix mb(2, 3);
-    DataBlock da(ma);
-    DataBlock db(mb);
+    DataBlock da(2, 3);
+    DataBlock db(2, 3);
 
-    ma.set_data({{1, 2, 3}, {4, 5, 6}});
-    mb.set_data({{2, 3, 5}, {8, 13, 21} });
+    da.val.set_data({{1, 2, 3}, {4, 5, 6}});
+    db.val.set_data({{2, 3, 5}, {8, 13, 21} });
 
     DifBlock dd(&db, &da); // db - da
 
@@ -338,10 +327,9 @@ TEST_CASE(dif_matrix) {
 }
 
 TEST_CASE(mul_el) {
-    Matrix ma(2, 3);
-    DataBlock da(ma);
+    DataBlock da(2, 3);
 
-    ma.set_data({{1, 2, 3}, {4, 5, 6}});
+    da.val.set_data({{1, 2, 3}, {4, 5, 6}});
 
     MulElBlock db(&da, 2);
     MulElBlock dc(&db, -1);
@@ -362,9 +350,8 @@ TEST_CASE(mul_el) {
 }
 
 TEST_CASE(sum_mat) {
-    Matrix ma(2, 3);
-    DataBlock da(ma);
-    ma.set_data({{1, 2, 3}, {4, 5, 6}});
+    DataBlock da(2, 3);
+    da.val.set_data({{1, 2, 3}, {4, 5, 6}});
 
     SumBlock ds(&da);
 
@@ -382,13 +369,11 @@ TEST_CASE(sum_mat) {
 
 
 TEST_CASE(sse) {
-    Matrix ma(2, 3);
-    DataBlock da(ma);
-    ma.set_data({{1, 2, 3}, {4, 5, 6}});
+    DataBlock da(2, 3);
+    da.val.set_data({{1, 2, 3}, {4, 5, 6}});
 
-    Matrix mb(2, 3);
-    DataBlock db(mb);
-    mb.set_data({{1, 2, 4}, {4, 5, 4}});
+    DataBlock db(2, 3);
+    db.val.set_data({{1, 2, 4}, {4, 5, 4}});
 
     SSEBlock ds(&da, &db);
 
@@ -434,14 +419,11 @@ TEST_CASE(sse_with_grads) {
 
 TEST_CASE(sigmoid_with_grads) {
 
-    Matrix mx(1, 2);
-    DataBlock x(mx);
-    mx.set_data({{0.1, -0.2}});
+    DataBlock x(1, 2);
+    x.val.set_data({{0.1, -0.2}});
 
-    Matrix mw(2, 3);
-
-    DataBlock w(mw);
-    mw.set_data({{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
+    DataBlock w(2, 3);
+    w.val.set_data({{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
 
     MatMulBlock mm(&x, &w);
 
@@ -460,12 +442,10 @@ TEST_CASE(sigmoid_with_grads) {
 
 // see test_bce_loss in python tests
 TEST_CASE(bce_with_grads) {
-    Matrix mypred(1, 3);
-    DataBlock ypred(mypred);
-    mypred.set_data({{0.527, 0.478, 0.468}});
-    Matrix mytrue(1, 3);
-    DataBlock ytrue(mytrue);
-    mytrue.set_data({{0, 1, 0.468}});
+    DataBlock ypred(1, 3);
+    ypred.val.set_data({{0.527, 0.478, 0.468}});
+    DataBlock ytrue(1, 3);
+    ytrue.val.set_data({{0, 1, 0.468}});
 
     BCEBlock bce(&ypred, &ytrue);
 
@@ -480,14 +460,11 @@ TEST_CASE(bce_with_grads) {
 
 
 TEST_CASE(full_layer_with_loss_with_grads) {
-    Matrix mx(1, 2);
-    DataBlock x(mx);
-    mx.set_data({{0.1, -0.2}});
+    DataBlock x(1, 2);
+    x.val.set_data({{0.1, -0.2}});
 
-    Matrix mw(2, 3);
-
-    DataBlock w(mw);
-    mw.set_data({
+    DataBlock w(2, 3);
+    w.val.set_data({
       {-0.1, 0.5, 0.3},
       {-0.6, 0.7, 0.8}
     });
@@ -495,9 +472,8 @@ TEST_CASE(full_layer_with_loss_with_grads) {
     MatMulBlock mm(&x, &w);
     SigmoidBlock sb(&mm);
     
-    Matrix my(1, 3);
-    DataBlock y(my);
-    my.set_data({{0, 1, 0.468}});
+    DataBlock y(1, 3);
+    y.val.set_data({{0, 1, 0.468}});
 
     // loss
     BCEBlock bce(&sb, &y);

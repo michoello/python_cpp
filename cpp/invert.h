@@ -145,14 +145,6 @@ struct Block {
 
 class DataBlock: public Block {
 public: 
-   DataBlock(const Matrix m) : Block({}, m.rows, m.cols) {
-     val = m;
-     funcs = FuncPair{
-       [](const std::vector<Matrix>& ins, Matrix* out) {},
-       [](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {}
-     };
-   }
-
    DataBlock(int rows, int cols) : Block({}, rows, cols) {
      funcs = FuncPair{
        [](const std::vector<Matrix>& ins, Matrix* out) {},
