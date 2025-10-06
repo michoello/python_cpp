@@ -152,6 +152,13 @@ public:
        [](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {}
      };
    }
+
+   DataBlock(int rows, int cols) : Block({}, rows, cols) {
+     funcs = FuncPair{
+       [](const std::vector<Matrix>& ins, Matrix* out) {},
+       [](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {}
+     };
+   }
 };
 
 
@@ -162,13 +169,13 @@ public:
   MatMulBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->val.rows, a2->val.cols) {
     funcs = FuncPair{
       // forward
-      [](const std::vector<Matrix>& ins, Matrix* out) {
-        multiply_matrix(ins[0], ins[1], out);
+      [a1, a2, this](const std::vector<Matrix>& ins, Matrix* out) {
+        multiply_matrix(a1->val, a2->val, &this->val);
       },
       // backward
-      [](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
-        multiply_matrix(ins[0].transpose(), grads, out[1]);
-        multiply_matrix(grads, ins[1].transpose(), out[0]);
+      [a1, a2](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
+        multiply_matrix(a1->val.transpose(), grads, &a2->grads_in);
+        multiply_matrix(grads, a2->val.transpose(), &a1->grads_in);
       }
     };
   }
@@ -343,11 +350,11 @@ public:
     assert(a1->val.rows == a2->val.rows && "Rows not equal");
     assert(a1->val.cols == a2->val.cols && "Cols not equal");
 
+	  const auto& y_pred = ins[0];
+		const auto& y_true = ins[1];
     funcs = FuncPair{
       // forward
-      [](const std::vector<Matrix>& ins, Matrix* out) {
-				const auto& y_pred = ins[0];
-				const auto& y_true = ins[1];
+      [&y_pred, &y_true](const std::vector<Matrix>& ins, Matrix* out) {
         double epsilon = 1e-12; // small value to avoid log(0)
         for (int i = 0; i < y_pred.rows; i++) {
         	for (int j = 0; j < y_true.cols; j++) {
@@ -361,9 +368,7 @@ public:
         // TODO: result matrix should be [1, 1] dimensional and be an average across all elements.
       },
       // backward
-      [](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
-        const auto& y_pred = ins[0];
-        const auto& y_true = ins[1];
+      [&y_pred, &y_true](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
         double epsilon = 1e-12;
         for (int i = 0; i < y_pred.rows; i++) {
           for (int j = 0; j < y_true.cols; j++) {

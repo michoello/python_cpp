@@ -364,7 +364,6 @@ TEST_CASE(mul_el) {
 TEST_CASE(sum_mat) {
     Matrix ma(2, 3);
     DataBlock da(ma);
-
     ma.set_data({{1, 2, 3}, {4, 5, 6}});
 
     SumBlock ds(&da);
@@ -401,14 +400,12 @@ TEST_CASE(sse) {
 
 TEST_CASE(sse_with_grads) {
     // "output"
-    Matrix my(1, 2);
-    DataBlock dy(my);
-    my.set_data({{1, 2}});  // true labels
+    DataBlock dy(1, 2);
+    dy.val.set_data({{1, 2}});  // true labels
 
     // "labels"
-    Matrix ml(1, 2);
-    DataBlock dl(ml);
-    ml.set_data({{0, 4}});
+    DataBlock dl(1, 2);
+    dl.val.set_data({{0, 4}});
 
     SSEBlock ds(&dy, &dl);
 
