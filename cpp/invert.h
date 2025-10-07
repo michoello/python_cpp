@@ -25,12 +25,10 @@ public:
     int cols;
     std::shared_ptr<std::vector<double>> data;  // flat row-major storage
 
-    // Constructor with rows, cols (zero initialized)
     Matrix(int r, int c, double val=0.0) : rows(r), cols(c), data(std::make_shared<std::vector<double>>(r * c, val)) {}
 
     Matrix(const Matrix& other) = default;
 
-    // Constructor with values (nested vector)
     void set_data(const std::vector<std::vector<double>>& vals) {
         for (int r=0; r < vals.size(); ++r) {
             if ((int)vals[r].size() != cols)
@@ -72,9 +70,7 @@ public:
         }
         return out;
     }
-
 };
-
 
 template <class T, class U>
 void multiply_matrix(const T& a, const U& b, Matrix* c) {
@@ -109,8 +105,8 @@ class Transposed {
 struct FuncPair {
   // Forward uses vector of input args, and pointer to result
   std::function<void()> forward;
-  // Backward takes grads matrix as single arg
-  std::function<void(const Matrix&)> backward;
+  // Backward for gradient propagation
+  std::function<void()> backward;
 };
 
 struct Block {
@@ -119,7 +115,7 @@ struct Block {
   Matrix val;
   Matrix grads_in;
 
-  Block(const std::vector<Block*>& argz, int r, int c) : args(argz), val(r, c), grads_in(r, c) {
+  Block(const std::vector<Block*>& argz, int r, int c) : args(argz), val(r, c), grads_in(r, c, 1.0) {
   }
 
   void CalcVal() {
@@ -130,19 +126,9 @@ struct Block {
   }
 
   virtual void CalcGrad() {
-     Matrix ones(grads_in.rows, grads_in.cols); // !!
-     for (int i = 0; i < ones.rows; i++) {
-      	for (int j = 0; j < ones.cols; j++) {
-            ones.at(i, j) = 1;
-        }
-     }
-     CalcGrad(ones);
-  }
-
-  virtual void CalcGrad(const Matrix& grads) {
-    funcs.backward(grads);
+    funcs.backward();
     for(auto* arg: args) {
-        arg->CalcGrad(arg->grads_in);
+        arg->CalcGrad();
     } 
   }
 
@@ -161,12 +147,10 @@ public:
    DataBlock(int rows, int cols) : Block({}, rows, cols) {
      funcs = FuncPair{
        []() {},
-       [](const Matrix& grads) {}
+       []() {}
      };
    }
 };
-
-
 
 // Matrix multiplication
 class MatMulBlock: public Block {
@@ -178,9 +162,9 @@ public:
         multiply_matrix(a1->val, a2->val, &this->val);
       },
       // backward
-      [a1, a2](const Matrix& grads) {
-        multiply_matrix(Transposed(a1->val), grads, &a2->grads_in);
-        multiply_matrix(grads, Transposed(a2->val), &a1->grads_in);
+      [a1, a2, this]() {
+        multiply_matrix(Transposed(a1->val), this->grads_in, &a2->grads_in);
+        multiply_matrix(this->grads_in, Transposed(a2->val), &a1->grads_in);
       }
     };
   }
@@ -194,7 +178,7 @@ public:
        [a1, a2, this]() {
           sum_matrix(a1->val, a2->val, &this->val);
        },
-       [](const Matrix& grads) {
+       []() {
           // TODO
        }
      };
@@ -253,9 +237,9 @@ public:
         Funcs::for_each_el(a->val, &this->val, fwd);
       },
       // backward
-      [a, bwd](const Matrix& grads) {
+      [a, bwd, this]() {
         Funcs::for_each_el(a->val, &a->grads_in, bwd);
-        mul_el_matrix(a->grads_in, grads, &a->grads_in);
+        mul_el_matrix(a->grads_in, this->grads_in, &a->grads_in);
       }
     };
   }
@@ -305,8 +289,8 @@ public:
         this->val.at(0, 0) = s;
       },
       // backward
-      [a, this](const Matrix& grads) {
-        double grad = grads.at(0, 0);
+      [a, this]() {
+        double grad = this->grads_in.at(0, 0);
         for(int r = 0; r < a->val.rows; ++r) {
            for(int c = 0; c < a->val.cols; ++c) {
                a->grads_in.at(r, c) = grad;
@@ -334,7 +318,7 @@ public:
         this->val.at(0, 0) = s;
       },
       // backward
-      [a1, a2, this](const Matrix& grads) {
+      [a1, a2, this]() {
         for (int i = 0; i < a1->val.rows; i++) {
            for (int j = 0; j < a1->val.cols; j++) {
               a1->grads_in.at(i, j) = 2* (a1->val.at(i, j) - a2->val.at(i, j));
@@ -371,7 +355,7 @@ public:
         // TODO: result matrix should be [1, 1] dimensional and be an average across all elements.
       },
       // backward
-      [&y_pred, &y_true, a1](const Matrix& grads) {
+      [&y_pred, &y_true, a1]() {
         double epsilon = 1e-12;
         for (int i = 0; i < y_pred.rows; i++) {
           for (int j = 0; j < y_true.cols; j++) {

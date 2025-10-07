@@ -245,10 +245,9 @@ TEST_CASE(matmul_with_grads) {
       {15, 18, 21},
     }));
 
-    Matrix dif(1, 3);
-    dif.set_data( {{12, 14, 16}});
-
-    dc.CalcGrad(dif);
+    // Set custom grads in
+    dc.grads_in.set_data( {{12, 14, 16}});
+    dc.CalcGrad();
     CHECK(assertEqualVectors(db.grads_in.value(), {
         {12, 14, 16}, {24, 28, 32}
     }));
@@ -401,8 +400,8 @@ TEST_CASE(sse_with_grads) {
     // Calc derivatives
     ds.CalcGrad();
 
-    // Derivative of loss function is its value // TODO: {1}
-    CHECK(assertEqualVectors(ds.grads_in.value(), { {0}, }));
+    // Derivative of loss function is its value is 1.0 (aka df/df)
+    CHECK(assertEqualVectors(ds.grads_in.value(), { {1}, }));
 
     // Derivative of its args
     CHECK(assertEqualVectors(dy.grads_in.value(), { {2, -4}, }));
@@ -485,8 +484,8 @@ TEST_CASE(full_layer_with_loss_with_grads) {
 
     // Calc diff and check the loss values
     bce.CalcGrad();
-    //CHECK(assertEqualVectors(bce.grads_in.value(), {{2.116, -2.094, -0.002}}));
-    CHECK(assertEqualVectors(bce.grads_in.value(), {{0, 0, 0}})); // TODO: 1, 1, 1
+    // Derivative of loss against itself is ones
+    CHECK(assertEqualVectors(bce.grads_in.value(), {{1, 1, 1}}));
 
     // Make sure the gradient flows backwards
     // Check sigmoid diff
