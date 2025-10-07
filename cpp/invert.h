@@ -16,8 +16,6 @@ std::vector<int> invert(const std::vector<int> &v);
 class Matrix;
 class Funcs;
 
-
-//void multiply_matrix(const Matrix& a, const Matrix& y_true, Matrix* c);
 void sum_matrix(const Matrix& a, const Matrix& y_true, Matrix* c);
 void mul_el_matrix(const Matrix& a, const Matrix& b, Matrix* c);
 
@@ -28,7 +26,7 @@ public:
     std::shared_ptr<std::vector<double>> data;  // flat row-major storage
 
     // Constructor with rows, cols (zero initialized)
-    Matrix(int r, int c) : rows(r), cols(c), data(std::make_shared<std::vector<double>>(r * c, 0.0)) {}
+    Matrix(int r, int c, double val=0.0) : rows(r), cols(c), data(std::make_shared<std::vector<double>>(r * c, val)) {}
 
     Matrix(const Matrix& other) = default;
 
@@ -109,10 +107,10 @@ class Transposed {
 };
 
 struct FuncPair {
-  // Forward takes vector of input args, and pointer to result
-  std::function<void(const std::vector<Matrix>&, Matrix*)> forward;
-  // Backward takes vector of input args, grads matrix, and vector of matrixes to write results to
-  std::function<void(const std::vector<Matrix>&, const Matrix&, const std::vector<Matrix*>&)> backward;
+  // Forward uses vector of input args, and pointer to result
+  std::function<void()> forward;
+  // Backward takes grads matrix as single arg
+  std::function<void(const Matrix&)> backward;
 };
 
 struct Block {
@@ -121,21 +119,14 @@ struct Block {
   Matrix val;
   Matrix grads_in;
 
-  std::vector<Matrix> ins;
-  std::vector<Matrix*> outs;
-
   Block(const std::vector<Block*>& argz, int r, int c) : args(argz), val(r, c), grads_in(r, c) {
-      for(auto* arg: args) {
-         ins.push_back(arg->val);
-         outs.push_back(&arg->grads_in);
-      }
   }
 
   void CalcVal() {
       for(auto* arg: args) {
          arg->CalcVal();
       }
-		  funcs.forward(ins, &val);
+		  funcs.forward();
   }
 
   virtual void CalcGrad() {
@@ -149,7 +140,7 @@ struct Block {
   }
 
   virtual void CalcGrad(const Matrix& grads) {
-    funcs.backward(ins, grads, outs);
+    funcs.backward(grads);
     for(auto* arg: args) {
         arg->CalcGrad(arg->grads_in);
     } 
@@ -169,8 +160,8 @@ class DataBlock: public Block {
 public: 
    DataBlock(int rows, int cols) : Block({}, rows, cols) {
      funcs = FuncPair{
-       [](const std::vector<Matrix>& ins, Matrix* out) {},
-       [](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {}
+       []() {},
+       [](const Matrix& grads) {}
      };
    }
 };
@@ -183,11 +174,11 @@ public:
   MatMulBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->val.rows, a2->val.cols) {
     funcs = FuncPair{
       // forward
-      [a1, a2, this](const std::vector<Matrix>& ins, Matrix* out) {
+      [a1, a2, this]() {
         multiply_matrix(a1->val, a2->val, &this->val);
       },
       // backward
-      [a1, a2](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
+      [a1, a2](const Matrix& grads) {
         multiply_matrix(Transposed(a1->val), grads, &a2->grads_in);
         multiply_matrix(grads, Transposed(a2->val), &a1->grads_in);
       }
@@ -200,10 +191,10 @@ public:
   AddBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->val.rows, a1->val.cols) {
      // TODO: check dimensions
      funcs = FuncPair{
-       [a1, a2, this](const std::vector<Matrix>& ins, Matrix* out) {
+       [a1, a2, this]() {
           sum_matrix(a1->val, a2->val, &this->val);
        },
-       [](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
+       [](const Matrix& grads) {
           // TODO
        }
      };
@@ -258,11 +249,11 @@ public:
   ElFunBlock(Block *a, DifFu fwd, DifFu bwd) : Block({a}, a->val.rows, a->val.cols) {
     funcs = FuncPair{
       // forward
-      [a, fwd, this](const std::vector<Matrix>& ins, Matrix* out) {
+      [a, fwd, this]() {
         Funcs::for_each_el(a->val, &this->val, fwd);
       },
       // backward
-      [a, bwd](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& outs) {
+      [a, bwd](const Matrix& grads) {
         Funcs::for_each_el(a->val, &a->grads_in, bwd);
         mul_el_matrix(a->grads_in, grads, &a->grads_in);
       }
@@ -304,7 +295,7 @@ public:
   SumBlock(Block *a) : Block({a}, 1, 1) {
     funcs = FuncPair{
       // forward
-      [a, this](const std::vector<Matrix>& ins, Matrix* out) {
+      [a, this]() {
         float s = 0.0;
         for (int i = 0; i < a->val.rows; i++) {
            for (int j = 0; j < a->val.cols; j++) {
@@ -314,7 +305,7 @@ public:
         this->val.at(0, 0) = s;
       },
       // backward
-      [a, this](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& outs) {
+      [a, this](const Matrix& grads) {
         double grad = grads.at(0, 0);
         for(int r = 0; r < a->val.rows; ++r) {
            for(int c = 0; c < a->val.cols; ++c) {
@@ -333,7 +324,7 @@ public:
   SSEBlock(Block* a1, Block* a2) : Block({a1, a2}, 1, 1) {
     funcs = FuncPair{
       // forward
-      [a1, a2, this](const std::vector<Matrix>& ins, Matrix* out) {
+      [a1, a2, this]() {
         float s = 0.0;
         for (int i = 0; i < a1->val.rows; i++) {
            for (int j = 0; j < a1->val.cols; j++) {
@@ -343,7 +334,7 @@ public:
         this->val.at(0, 0) = s;
       },
       // backward
-      [a1, a2, this](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
+      [a1, a2, this](const Matrix& grads) {
         for (int i = 0; i < a1->val.rows; i++) {
            for (int j = 0; j < a1->val.cols; j++) {
               a1->grads_in.at(i, j) = 2* (a1->val.at(i, j) - a2->val.at(i, j));
@@ -368,27 +359,25 @@ public:
 		const auto& y_true = a2->val;
     funcs = FuncPair{
       // forward
-      [&y_pred, &y_true](const std::vector<Matrix>& ins, Matrix* out) {
+      [&y_pred, &y_true, this]() {
         double epsilon = 1e-12; // small value to avoid log(0)
         for (int i = 0; i < y_pred.rows; i++) {
         	for (int j = 0; j < y_true.cols; j++) {
-
-            // Clip predictions to avoid log(0)
             double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
             double t = y_true.at(i, j);
-            out->at(i, j) = -(t * std::log(p) + (1.0 - t) * std::log(1.0 - p));
+            this->val.at(i, j) = -(t * std::log(p) + (1.0 - t) * std::log(1.0 - p));
           }
         }
         // TODO: result matrix should be [1, 1] dimensional and be an average across all elements.
       },
       // backward
-      [&y_pred, &y_true](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
+      [&y_pred, &y_true, a1](const Matrix& grads) {
         double epsilon = 1e-12;
         for (int i = 0; i < y_pred.rows; i++) {
           for (int j = 0; j < y_true.cols; j++) {
              double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
              double t = y_true.at(i, j);
-             out[0]->at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
+             a1->grads_in.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
           }
         }
       }
