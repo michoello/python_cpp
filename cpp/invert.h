@@ -16,7 +16,8 @@ std::vector<int> invert(const std::vector<int> &v);
 class Matrix;
 class Funcs;
 
-void multiply_matrix(const Matrix& a, const Matrix& y_true, Matrix* c);
+
+//void multiply_matrix(const Matrix& a, const Matrix& y_true, Matrix* c);
 void sum_matrix(const Matrix& a, const Matrix& y_true, Matrix* c);
 void mul_el_matrix(const Matrix& a, const Matrix& b, Matrix* c);
 
@@ -74,16 +75,37 @@ public:
         return out;
     }
 
-  // TODO: CRTP-based view block, avoid mem allocation on each round
-  Matrix transpose() const {
-     Matrix r(cols, rows);
-     for (int i = 0; i < rows; i++) {
-         for (int j = 0; j < cols; j++) {
-            r.at(j, i) = at(i, j);
-         }
-     }
-     return r;
-  }
+};
+
+
+template <class T, class U>
+void multiply_matrix(const T& a, const U& b, Matrix* c) {
+  // TODO: remove it out of here?
+    if (a.cols != b.rows || a.rows != c->rows || b.cols != c->cols) {
+        throw std::invalid_argument("Matrix dimensions do not match for multiplication");
+    }
+
+    for (int i = 0; i < a.rows; i++) {
+        for (int j = 0; j < b.cols; j++) {
+            double sum = 0.0;
+            for (int k = 0; k < a.cols; k++) {
+                sum += a.at(i, k) * b.at(k, j);
+            }
+            c->at(i, j) = sum;
+        }
+    }
+}
+
+// Transposed view of the matrix with no overhead. For MatMul back gradient propagation
+class Transposed {
+    const Matrix& matrix;
+  public:
+    int rows;
+    int cols;
+    Transposed(const Matrix& src) : matrix(src), rows(src.cols), cols(src.rows) {}
+    inline const double& at(int r, int c) const {
+        return matrix.at(c, r);
+    }
 };
 
 struct FuncPair {
@@ -166,8 +188,10 @@ public:
       },
       // backward
       [a1, a2](const std::vector<Matrix>& ins, const Matrix& grads, const std::vector<Matrix*>& out) {
-        multiply_matrix(a1->val.transpose(), grads, &a2->grads_in);
-        multiply_matrix(grads, a2->val.transpose(), &a1->grads_in);
+        //multiply_matrix(a1->val.transpose(), grads, &a2->grads_in);
+        multiply_matrix(Transposed(a1->val), grads, &a2->grads_in);
+        //multiply_matrix(grads, a2->val.transpose(), &a1->grads_in);
+        multiply_matrix(grads, Transposed(a2->val), &a1->grads_in);
       }
     };
   }
