@@ -90,17 +90,6 @@ void multiply_matrix(const T& a, const U& b, Matrix* c) {
     }
 }
 
-// Transposed view of the matrix with no overhead. For MatMul back gradient propagation
-class Transposed {
-    const Matrix& matrix;
-  public:
-    int rows;
-    int cols;
-    Transposed(const Matrix& src) : matrix(src), rows(src.cols), cols(src.rows) {}
-    inline const double& at(int r, int c) const {
-        return matrix.at(c, r);
-    }
-};
 
 struct FuncPair {
   // Forward uses vector of input args, and pointer to result
@@ -141,34 +130,44 @@ struct Block {
   }
 };
 
-
-class DataBlock: public Block {
-public: 
-   DataBlock(int rows, int cols) : Block({}, rows, cols) {
-     funcs = FuncPair{
+static Block Data(int rows, int cols) {
+     Block res({}, rows, cols);
+     res.funcs = FuncPair{
        []() {},
        []() {}
      };
-   }
-};
+     return res;
+}
 
-// Matrix multiplication
-class MatMulBlock: public Block {
-public:
-  MatMulBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->val.rows, a2->val.cols) {
-    funcs = FuncPair{
-      // forward
-      [a1, a2, this]() {
-        multiply_matrix(a1->val, a2->val, &this->val);
-      },
-      // backward
-      [a1, a2, this]() {
-        multiply_matrix(Transposed(a1->val), this->grads_in, &a2->grads_in);
-        multiply_matrix(this->grads_in, Transposed(a2->val), &a1->grads_in);
-      }
-    };
-  }
-};
+static Block MatMul(Block* a1, Block* a2) {
+
+  // Transposed view of the matrix with no overhead. For MatMul back gradient propagation
+  class Transposed {
+    const Matrix& matrix;
+  public:
+    int rows;
+    int cols;
+    Transposed(const Matrix& src) : matrix(src), rows(src.cols), cols(src.rows) {}
+    inline const double& at(int r, int c) const {
+        return matrix.at(c, r);
+    }
+  };
+
+
+  Block res({a1, a2}, a1->val.rows, a2->val.cols);
+  res.funcs = FuncPair{
+    // forward
+    [a1, a2, &res]() {
+      multiply_matrix(a1->val, a2->val, &res.val);
+    },
+    // backward
+    [a1, a2, &res]() {
+      multiply_matrix(Transposed(a1->val), res.grads_in, &a2->grads_in);
+      multiply_matrix(res.grads_in, Transposed(a2->val), &a1->grads_in);
+    }
+  };
+  return res;
+}
 
 class AddBlock: public Block {
 public:
