@@ -377,7 +377,8 @@ TEST_CASE(sse) {
     Block db = Data(2, 3);
     db.val.set_data({{1, 2, 4}, {4, 5, 4}});
 
-    SSEBlock ds(&da, &db);
+    //SSEBlock ds(&da, &db);
+    Block ds = SSE(&da, &db);
 
     ds.CalcVal();
 
@@ -394,7 +395,7 @@ TEST_CASE(sse_with_grads) {
     Block dl = Data(1, 2);
     dl.val.set_data({{0, 4}});
 
-    SSEBlock ds(&dy, &dl);
+    Block ds = SSE(&dy, &dl);
 
     ds.CalcVal();
 
@@ -449,7 +450,7 @@ TEST_CASE(bce_with_grads) {
     Block ytrue = Data(1, 3);
     ytrue.val.set_data({{0, 1, 0.468}});
 
-    BCEBlock bce(&ypred, &ytrue);
+    Block bce = BCE(&ypred, &ytrue);
 
     bce.CalcVal();
     CHECK(assertEqualVectors(bce.val.value(), {{0.749, 0.738, 0.691}}));
@@ -478,7 +479,7 @@ TEST_CASE(full_layer_with_loss_with_grads) {
     y.val.set_data({{0, 1, 0.468}});
 
     // loss
-    BCEBlock bce(&sb, &y);
+    Block bce = BCE(&sb, &y);
 
     // Forward
     bce.CalcVal();

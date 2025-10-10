@@ -142,9 +142,8 @@ static Block Data(int rows, int cols) {
 static Block MatMul(Block* a1, Block* a2) {
 
   // Transposed view of the matrix with no overhead. For MatMul back gradient propagation
-  class Transposed {
+  struct Transposed {
     const Matrix& matrix;
-  public:
     int rows;
     int cols;
     Transposed(const Matrix& src) : matrix(src), rows(src.cols), cols(src.rows) {}
@@ -307,53 +306,53 @@ static Block Sum(Block *a) {
 }
 
 
-class SSEBlock: public Block {
-public:
-  SSEBlock(Block* a1, Block* a2) : Block({a1, a2}, 1, 1) {
-    funcs = FuncPair{
+static Block SSE(Block *a1, Block* a2) {
+  Block res({a1, a2}, 1, 1);
+   
+  res.funcs = FuncPair{
       // forward
-      [a1, a2, this]() {
+      [a1, a2, &res]() {
         float s = 0.0;
         for (int i = 0; i < a1->val.rows; i++) {
            for (int j = 0; j < a1->val.cols; j++) {
               s += Funcs::square(a2->val.at(i, j) - a1->val.at(i, j));
            }
         }
-        this->val.at(0, 0) = s;
+        res.val.at(0, 0) = s;
       },
       // backward
-      [a1, a2, this]() {
+      [a1, a2, &res]() {
         for (int i = 0; i < a1->val.rows; i++) {
            for (int j = 0; j < a1->val.cols; j++) {
               a1->grads_in.at(i, j) = 2* (a1->val.at(i, j) - a2->val.at(i, j));
            }
         }
       }
-    };
-  }
-};
+  };
+  return res;
+}
+
 
 // Binary Cross Enthropy
 // TODO: calc average as a single value. Currently it is consistent with 
 // python impl having same flaw
-class BCEBlock: public Block {
-protected:
-public:
-  BCEBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->val.rows, a1->val.cols) {
+static Block BCE(Block *a1, Block* a2) {
+  Block res({a1, a2}, a1->val.rows, a1->val.cols);
     assert(a1->val.rows == a2->val.rows && "Rows not equal");
     assert(a1->val.cols == a2->val.cols && "Cols not equal");
 
 	  const auto& y_pred = a1->val;
 		const auto& y_true = a2->val;
-    funcs = FuncPair{
+   
+  res.funcs = FuncPair{
       // forward
-      [&y_pred, &y_true, this]() {
+      [&y_pred, &y_true, &res]() {
         double epsilon = 1e-12; // small value to avoid log(0)
         for (int i = 0; i < y_pred.rows; i++) {
         	for (int j = 0; j < y_true.cols; j++) {
             double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
             double t = y_true.at(i, j);
-            this->val.at(i, j) = -(t * std::log(p) + (1.0 - t) * std::log(1.0 - p));
+            res.val.at(i, j) = -(t * std::log(p) + (1.0 - t) * std::log(1.0 - p));
           }
         }
         // TODO: result matrix should be [1, 1] dimensional and be an average across all elements.
@@ -369,7 +368,7 @@ public:
           }
         }
       }
-    };
-  }
-};
+  };
+  return res;
+}
 
