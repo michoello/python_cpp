@@ -227,69 +227,84 @@ public:
 
 };
 
-static Block ElFun(Block* a, DifFu fwd, DifFu bwd) {
-  Block res({a}, a->val.rows, a->val.cols);
-  res.funcs = FuncPair{
+static Block* ElFun(Block* a, DifFu fwd, DifFu bwd) {
+  Block* res = new Block({a}, a->val.rows, a->val.cols);
+  res->funcs = FuncPair{
     // forward
-      [a, fwd, &res]() {
-        Funcs::for_each_el(a->val, &res.val, fwd);
+      [a, fwd, res]() {
+        Funcs::for_each_el(a->val, &res->val, fwd);
       },
     // backward
-      [a, bwd, &res]() {
+      [a, bwd, res]() {
         Funcs::for_each_el(a->val, &a->grads_in, bwd);
-        mul_el_matrix(a->grads_in, res.grads_in, &a->grads_in);
+        mul_el_matrix(a->grads_in, res->grads_in, &a->grads_in);
       }
   };
   return res;
 }
 
-static Block Sqrt(Block* a) {
+static Block* Sqrt(Block* a) {
   return ElFun(a, &Funcs::square, &Funcs::tbd);
 }
 
 static Block Sigmoid(Block *a) {
-  return ElFun(a, &Funcs::sigmoid, &Funcs::sigmoid_derivative);
+  return *ElFun(a, &Funcs::sigmoid, &Funcs::sigmoid_derivative);
 }
 
-static Block MulEl(Block *a, double n) {
+static Block* MulEl(Block *a, double n) {
   return ElFun(a, Funcs::get_mul_el(n), &Funcs::tbd);
 }
 
-// Difference
-class DifBlock: public AddBlock {
-public:
-  // TODO: fix the memory leak here:
-  DifBlock(Block* a1, Block* a2) : AddBlock(a1, new MulElBlock(a2, -1)) {
-  }
+
+static Block Add(Block* a1, Block* a2) {
+   Block  res({a1, a2}, a1->val.rows, a1->val.cols);
+
+     // TODO: check dimensions
+     res.funcs = FuncPair{
+       [a1, a2, &res]() {
+          sum_matrix(a1->val, a2->val, &res.val);
+       },
+       []() {
+          // TODO
+       }
+     };
+     return res;
 };
 
 
-class SumBlock: public Block {
-public:
-  SumBlock(Block *a) : Block({a}, 1, 1) {
-    funcs = FuncPair{
+// Difference
+static Block Dif(Block* a1, Block* a2) {
+   return Add(a1, MulEl(a2, -1));
+};
+
+
+static Block Sum(Block *a) {
+  Block res({a}, 1, 1);
+   
+  res.funcs = FuncPair{
       // forward
-      [a, this]() {
+      [a, &res]() {
         float s = 0.0;
         for (int i = 0; i < a->val.rows; i++) {
            for (int j = 0; j < a->val.cols; j++) {
               s += a->val.at(i, j);
            }
         }
-        this->val.at(0, 0) = s;
+        res.val.at(0, 0) = s;
       },
       // backward
-      [a, this]() {
-        double grad = this->grads_in.at(0, 0);
+      [a, &res]() {
+        double grad = res.grads_in.at(0, 0);
         for(int r = 0; r < a->val.rows; ++r) {
            for(int c = 0; c < a->val.cols; ++c) {
                a->grads_in.at(r, c) = grad;
            }
         }
       }
-    };
-  }
-};
+  };
+
+  return res;
+}
 
 
 class SSEBlock: public Block {

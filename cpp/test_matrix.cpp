@@ -267,19 +267,19 @@ TEST_CASE(matmul_with_grads) {
 TEST_CASE(sqrt_matrix) {
     Block da = Data(2, 3);
 
-    Block dc = Sqrt(&da);
-    Block dc2 = Sqrt(&dc);
+    Block* dc = Sqrt(&da);
+    Block* dc2 = Sqrt(dc);
 
     da.val.set_data({{1, 2, 3}, {4, 5, 6}});
 
-    dc2.CalcVal();
-    CHECK(assertEqualVectors(dc2.val.value(), {
+    dc2->CalcVal();
+    CHECK(assertEqualVectors(dc2->val.value(), {
       {1, 16, 81},
       {256, 625, 1296},
     }));
 
     // dc is also calculated
-    CHECK(assertEqualVectors(dc.val.value(), {
+    CHECK(assertEqualVectors(dc->val.value(), {
       {1, 4, 9},
       {16, 25, 36},
     }));
@@ -294,8 +294,8 @@ TEST_CASE(add_matrix) {
     db.val.set_data({{4, 5, 6}, {1, 2, 3 }});
     dc.val.set_data({{1, 1, 1}, {2, 2, 2}});
 
-    AddBlock ds1(&da, &db);
-    AddBlock ds2(&ds1, &dc);
+    Block ds1 = Add(&da, &db);
+    Block ds2 = Add(&ds1, &dc);
 
     ds2.CalcVal();
     CHECK(assertEqualVectors(ds2.val.value(), {
@@ -318,7 +318,8 @@ TEST_CASE(dif_matrix) {
     da.val.set_data({{1, 2, 3}, {4, 5, 6}});
     db.val.set_data({{2, 3, 5}, {8, 13, 21} });
 
-    DifBlock dd(&db, &da); // db - da
+    //DifBlock dd(&db, &da); // db - da
+    Block dd = Dif(&db, &da); // db - da
 
     dd.CalcVal();
     CHECK(assertEqualVectors(dd.val.value(), {
@@ -332,17 +333,17 @@ TEST_CASE(mul_el) {
 
     da.val.set_data({{1, 2, 3}, {4, 5, 6}});
 
-    Block db = MulEl(&da, 2);
-    Block dc = MulEl(&db, -1);
+    Block* db = MulEl(&da, 2);
+    Block* dc = MulEl(db, -1);
 
-    dc.CalcVal();
+    dc->CalcVal();
 
-    CHECK(assertEqualVectors(db.val.value(), {
+    CHECK(assertEqualVectors(db->val.value(), {
       {2, 4, 6},
       {8, 10, 12},
     }));
 
-    CHECK(assertEqualVectors(dc.val.value(), {
+    CHECK(assertEqualVectors(dc->val.value(), {
       {-2, -4, -6},
       {-8, -10, -12},
     }));
@@ -354,7 +355,7 @@ TEST_CASE(sum_mat) {
     Block da = Data(2, 3);
     da.val.set_data({{1, 2, 3}, {4, 5, 6}});
 
-    SumBlock ds(&da);
+    Block ds = Sum(&da);
 
     ds.CalcVal();
     CHECK(assertEqualVectors(ds.val.value(), {
