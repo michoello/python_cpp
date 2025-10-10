@@ -267,8 +267,8 @@ TEST_CASE(matmul_with_grads) {
 TEST_CASE(sqrt_matrix) {
     Block da = Data(2, 3);
 
-    SqrtBlock dc(&da);
-    SqrtBlock dc2(&dc);
+    Block dc = Sqrt(&da);
+    Block dc2 = Sqrt(&dc);
 
     da.val.set_data({{1, 2, 3}, {4, 5, 6}});
 
@@ -332,8 +332,8 @@ TEST_CASE(mul_el) {
 
     da.val.set_data({{1, 2, 3}, {4, 5, 6}});
 
-    MulElBlock db(&da, 2);
-    MulElBlock dc(&db, -1);
+    Block db = MulEl(&da, 2);
+    Block dc = MulEl(&db, -1);
 
     dc.CalcVal();
 
@@ -428,7 +428,7 @@ TEST_CASE(sigmoid_with_grads) {
 
     Block mm = MatMul(&x, &w);
 
-    SigmoidBlock sb(&mm);
+    Block sb = Sigmoid(&mm);
 
     sb.CalcVal();
 
@@ -471,7 +471,7 @@ TEST_CASE(full_layer_with_loss_with_grads) {
     });
 
     Block mm = MatMul(&x, &w);
-    SigmoidBlock sb(&mm);
+    Block sb = Sigmoid(&mm);
     
     Block y = Data(1, 3);
     y.val.set_data({{0, 1, 0.468}});

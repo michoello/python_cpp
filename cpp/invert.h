@@ -227,42 +227,33 @@ public:
 
 };
 
-class ElFunBlock: public Block {
-public:
-  ElFunBlock(Block *a, DifFu fwd, DifFu bwd) : Block({a}, a->val.rows, a->val.cols) {
-    funcs = FuncPair{
-      // forward
-      [a, fwd, this]() {
-        Funcs::for_each_el(a->val, &this->val, fwd);
+static Block ElFun(Block* a, DifFu fwd, DifFu bwd) {
+  Block res({a}, a->val.rows, a->val.cols);
+  res.funcs = FuncPair{
+    // forward
+      [a, fwd, &res]() {
+        Funcs::for_each_el(a->val, &res.val, fwd);
       },
-      // backward
-      [a, bwd, this]() {
+    // backward
+      [a, bwd, &res]() {
         Funcs::for_each_el(a->val, &a->grads_in, bwd);
-        mul_el_matrix(a->grads_in, this->grads_in, &a->grads_in);
+        mul_el_matrix(a->grads_in, res.grads_in, &a->grads_in);
       }
-    };
-  }
-};
+  };
+  return res;
+}
 
+static Block Sqrt(Block* a) {
+  return ElFun(a, &Funcs::square, &Funcs::tbd);
+}
 
-class SqrtBlock: public ElFunBlock {
-public:
-  SqrtBlock(Block *a) : ElFunBlock(a, &Funcs::square, &Funcs::tbd) {
-  }
-};
+static Block Sigmoid(Block *a) {
+  return ElFun(a, &Funcs::sigmoid, &Funcs::sigmoid_derivative);
+}
 
-
-class SigmoidBlock: public ElFunBlock {
-public:
-  SigmoidBlock(Block *a) : ElFunBlock(a, &Funcs::sigmoid, &Funcs::sigmoid_derivative) {
-  }
-};
-
-class MulElBlock: public ElFunBlock {
-public:
-  MulElBlock(Block *a, double n) : ElFunBlock(a, Funcs::get_mul_el(n), &Funcs::tbd) {
-  }
-};
+static Block MulEl(Block *a, double n) {
+  return ElFun(a, Funcs::get_mul_el(n), &Funcs::tbd);
+}
 
 // Difference
 class DifBlock: public AddBlock {
@@ -297,7 +288,6 @@ public:
         }
       }
     };
-
   }
 };
 
