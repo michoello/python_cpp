@@ -91,17 +91,15 @@ void multiply_matrix(const T& a, const U& b, Matrix* c) {
 }
 
 
-struct FuncPair {
-  // Forward uses vector of input args, and pointer to result
-  std::function<void()> forward;
-  // Backward for gradient propagation
-  std::function<void()> backward;
-};
-
 struct Block {
   std::vector<Block*> args;
-  FuncPair funcs;
   Matrix val;
+
+  // Forward uses vector of input args, and pointer to result
+  std::function<void()> forward = []() {};
+  // Backward for gradient propagation
+  std::function<void()> backward = []() {};
+
   Matrix grads_in;
 
   Block(const std::vector<Block*>& argz, int r, int c) : args(argz), val(r, c), grads_in(r, c, 1.0) {
@@ -111,11 +109,11 @@ struct Block {
       for(auto* arg: args) {
          arg->CalcVal();
       }
-		  funcs.forward();
+		  forward();
   }
 
   virtual void CalcGrad() {
-    funcs.backward();
+    backward();
     for(auto* arg: args) {
         arg->CalcGrad();
     } 
@@ -132,10 +130,6 @@ struct Block {
 
 static Block Data(int rows, int cols) {
      Block res({}, rows, cols);
-     res.funcs = FuncPair{
-       []() {},
-       []() {}
-     };
      return res;
 }
 
@@ -154,34 +148,17 @@ static Block MatMul(Block* a1, Block* a2) {
 
 
   Block res({a1, a2}, a1->val.rows, a2->val.cols);
-  res.funcs = FuncPair{
-    // forward
-    [a1, a2, &res]() {
+  res.forward = [a1, a2, &res]() {
       multiply_matrix(a1->val, a2->val, &res.val);
-    },
-    // backward
-    [a1, a2, &res]() {
+    };
+  res.backward = [a1, a2, &res]() {
       multiply_matrix(Transposed(a1->val), res.grads_in, &a2->grads_in);
       multiply_matrix(res.grads_in, Transposed(a2->val), &a1->grads_in);
-    }
   };
+
+
   return res;
 }
-
-class AddBlock: public Block {
-public:
-  AddBlock(Block* a1, Block* a2) : Block({a1, a2}, a1->val.rows, a1->val.cols) {
-     // TODO: check dimensions
-     funcs = FuncPair{
-       [a1, a2, this]() {
-          sum_matrix(a1->val, a2->val, &this->val);
-       },
-       []() {
-          // TODO
-       }
-     };
-  }
-};
 
 using DifFu = std::function<double(double)>;
 
@@ -228,17 +205,17 @@ public:
 
 static Block* ElFun(Block* a, DifFu fwd, DifFu bwd) {
   Block* res = new Block({a}, a->val.rows, a->val.cols);
-  res->funcs = FuncPair{
-    // forward
-      [a, fwd, res]() {
+
+  res->forward =  [a, fwd, res]() {
         Funcs::for_each_el(a->val, &res->val, fwd);
-      },
+      };
     // backward
-      [a, bwd, res]() {
+  res->backward = [a, bwd, res]() {
         Funcs::for_each_el(a->val, &a->grads_in, bwd);
         mul_el_matrix(a->grads_in, res->grads_in, &a->grads_in);
-      }
-  };
+      };
+
+
   return res;
 }
 
@@ -259,14 +236,12 @@ static Block Add(Block* a1, Block* a2) {
    Block  res({a1, a2}, a1->val.rows, a1->val.cols);
 
      // TODO: check dimensions
-     res.funcs = FuncPair{
-       [a1, a2, &res]() {
+  res.forward = [a1, a2, &res]() {
           sum_matrix(a1->val, a2->val, &res.val);
-       },
-       []() {
-          // TODO
-       }
-     };
+       };
+    // TODO: backward
+
+
      return res;
 };
 
@@ -280,9 +255,7 @@ static Block Dif(Block* a1, Block* a2) {
 static Block Sum(Block *a) {
   Block res({a}, 1, 1);
    
-  res.funcs = FuncPair{
-      // forward
-      [a, &res]() {
+   res.forward =   [a, &res]() {
         float s = 0.0;
         for (int i = 0; i < a->val.rows; i++) {
            for (int j = 0; j < a->val.cols; j++) {
@@ -290,17 +263,16 @@ static Block Sum(Block *a) {
            }
         }
         res.val.at(0, 0) = s;
-      },
-      // backward
-      [a, &res]() {
+      };
+    res.backward =  [a, &res]() {
         double grad = res.grads_in.at(0, 0);
         for(int r = 0; r < a->val.rows; ++r) {
            for(int c = 0; c < a->val.cols; ++c) {
                a->grads_in.at(r, c) = grad;
            }
         }
-      }
-  };
+      };
+
 
   return res;
 }
@@ -309,9 +281,7 @@ static Block Sum(Block *a) {
 static Block SSE(Block *a1, Block* a2) {
   Block res({a1, a2}, 1, 1);
    
-  res.funcs = FuncPair{
-      // forward
-      [a1, a2, &res]() {
+  res.forward =[a1, a2, &res]() {
         float s = 0.0;
         for (int i = 0; i < a1->val.rows; i++) {
            for (int j = 0; j < a1->val.cols; j++) {
@@ -319,16 +289,16 @@ static Block SSE(Block *a1, Block* a2) {
            }
         }
         res.val.at(0, 0) = s;
-      },
-      // backward
-      [a1, a2, &res]() {
+      };
+     res.backward = [a1, a2, &res]() {
         for (int i = 0; i < a1->val.rows; i++) {
            for (int j = 0; j < a1->val.cols; j++) {
               a1->grads_in.at(i, j) = 2* (a1->val.at(i, j) - a2->val.at(i, j));
            }
         }
-      }
-  };
+      };
+
+
   return res;
 }
 
@@ -343,10 +313,8 @@ static Block BCE(Block *a1, Block* a2) {
 
 	  const auto& y_pred = a1->val;
 		const auto& y_true = a2->val;
-   
-  res.funcs = FuncPair{
-      // forward
-      [&y_pred, &y_true, &res]() {
+
+   res.forward =   [&y_pred, &y_true, &res]() {
         double epsilon = 1e-12; // small value to avoid log(0)
         for (int i = 0; i < y_pred.rows; i++) {
         	for (int j = 0; j < y_true.cols; j++) {
@@ -356,9 +324,9 @@ static Block BCE(Block *a1, Block* a2) {
           }
         }
         // TODO: result matrix should be [1, 1] dimensional and be an average across all elements.
-      },
+      };
       // backward
-      [&y_pred, &y_true, a1]() {
+   res.backward =   [&y_pred, &y_true, a1]() {
         double epsilon = 1e-12;
         for (int i = 0; i < y_pred.rows; i++) {
           for (int j = 0; j < y_true.cols; j++) {
@@ -367,8 +335,10 @@ static Block BCE(Block *a1, Block* a2) {
              a1->grads_in.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
           }
         }
-      }
-  };
+      };
+
+
+
   return res;
 }
 
