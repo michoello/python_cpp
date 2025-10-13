@@ -1,5 +1,16 @@
 # listinvert (C++ version, GPU-ready)
 
+## Clang formatting
+
+```
+sudo yum install -y clang-tools-extra
+
+clang-format -i cpp/invert.h
+clang-format -i cpp/test_matrix.cpp
+
+```
+
+
 ## Preparation
 
 Run anywhere

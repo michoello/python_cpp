@@ -1,98 +1,97 @@
 /*
-*  LLM stands for Little Lazy Matrix
-*
-*/
+ *  LLM stands for Little Lazy Matrix
+ *
+ */
 
-#include <vector>
 #include <cassert>
-#include <iostream>
-#include <random>
-#include <functional>
-#include <memory>
 #include <cmath>
+#include <functional>
+#include <iostream>
+#include <memory>
+#include <random>
+#include <vector>
 
 std::vector<int> invert(const std::vector<int> &v);
 
 class Matrix;
 class Funcs;
 
-void sum_matrix(const Matrix& a, const Matrix& y_true, Matrix* c);
-void mul_el_matrix(const Matrix& a, const Matrix& b, Matrix* c);
+void sum_matrix(const Matrix &a, const Matrix &y_true, Matrix *c);
+void mul_el_matrix(const Matrix &a, const Matrix &b, Matrix *c);
 
 class Matrix {
 public:
-    int rows;
-    int cols;
-    std::shared_ptr<std::vector<double>> data;  // flat row-major storage
+  int rows;
+  int cols;
+  std::shared_ptr<std::vector<double>> data; // flat row-major storage
 
-    Matrix(int r, int c, double val=0.0) : rows(r), cols(c), data(std::make_shared<std::vector<double>>(r * c, val)) {}
+  Matrix(int r, int c, double val = 0.0)
+      : rows(r), cols(c),
+        data(std::make_shared<std::vector<double>>(r * c, val)) {}
 
-    Matrix(const Matrix& other) = default;
+  Matrix(const Matrix &other) = default;
 
-    void set_data(const std::vector<std::vector<double>>& vals) {
-        for (int r=0; r < vals.size(); ++r) {
-            if ((int)vals[r].size() != cols)
-                throw std::invalid_argument("All rows must have the same number of columns");
-            for(int c=0; c < cols; ++c) {
-                at(r, c) = vals[r][c];
-            }
-        }
-    }
-
-    void fill_uniform() {
-      // Random engine
-      static std::random_device rd;
-      static std::mt19937 gen(rd());
-
-      // Uniform distribution in [-1, 1]
-      std::uniform_real_distribution<double> dist(-1.0, 1.0);
-
-      for (auto& x : *data) {
-          x = dist(gen);
+  void set_data(const std::vector<std::vector<double>> &vals) {
+    for (int r = 0; r < vals.size(); ++r) {
+      if ((int)vals[r].size() != cols)
+        throw std::invalid_argument(
+            "All rows must have the same number of columns");
+      for (int c = 0; c < cols; ++c) {
+        at(r, c) = vals[r][c];
       }
     }
+  }
 
-    inline double& at(int r, int c) {
-        return (*data)[r * cols + c];
-    }
+  void fill_uniform() {
+    // Random engine
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
 
-    inline const double& at(int r, int c) const {
-        return (*data)[r * cols + c];
-    }
+    // Uniform distribution in [-1, 1]
+    std::uniform_real_distribution<double> dist(-1.0, 1.0);
 
-    // Convert back to nested vector (Python list-of-lists)
-    std::vector<std::vector<double>> value() const {
-        std::vector<std::vector<double>> out(rows, std::vector<double>(cols));
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < cols; j++) {
-                out[i][j] = at(i, j);
-            }
-        }
-        return out;
+    for (auto &x : *data) {
+      x = dist(gen);
     }
+  }
+
+  inline double &at(int r, int c) { return (*data)[r * cols + c]; }
+
+  inline const double &at(int r, int c) const { return (*data)[r * cols + c]; }
+
+  // Convert back to nested vector (Python list-of-lists)
+  std::vector<std::vector<double>> value() const {
+    std::vector<std::vector<double>> out(rows, std::vector<double>(cols));
+    for (int i = 0; i < rows; i++) {
+      for (int j = 0; j < cols; j++) {
+        out[i][j] = at(i, j);
+      }
+    }
+    return out;
+  }
 };
 
 template <class T, class U>
-void multiply_matrix(const T& a, const U& b, Matrix* c) {
+void multiply_matrix(const T &a, const U &b, Matrix *c) {
   // TODO: remove it out of here?
-    if (a.cols != b.rows || a.rows != c->rows || b.cols != c->cols) {
-        throw std::invalid_argument("Matrix dimensions do not match for multiplication");
-    }
+  if (a.cols != b.rows || a.rows != c->rows || b.cols != c->cols) {
+    throw std::invalid_argument(
+        "Matrix dimensions do not match for multiplication");
+  }
 
-    for (int i = 0; i < a.rows; i++) {
-        for (int j = 0; j < b.cols; j++) {
-            double sum = 0.0;
-            for (int k = 0; k < a.cols; k++) {
-                sum += a.at(i, k) * b.at(k, j);
-            }
-            c->at(i, j) = sum;
-        }
+  for (int i = 0; i < a.rows; i++) {
+    for (int j = 0; j < b.cols; j++) {
+      double sum = 0.0;
+      for (int k = 0; k < a.cols; k++) {
+        sum += a.at(i, k) * b.at(k, j);
+      }
+      c->at(i, j) = sum;
     }
+  }
 }
 
-
 struct Block {
-  std::vector<Block*> args;
+  std::vector<Block *> args;
   Matrix val;
 
   // Forward uses vector of input args, and pointer to result
@@ -102,60 +101,58 @@ struct Block {
 
   Matrix grads_in;
 
-  Block(const std::vector<Block*>& argz, int r, int c) : args(argz), val(r, c), grads_in(r, c, 1.0) {
-  }
+  Block(const std::vector<Block *> &argz, int r, int c)
+      : args(argz), val(r, c), grads_in(r, c, 1.0) {}
 
   void CalcVal() {
-      for(auto* arg: args) {
-         arg->CalcVal();
-      }
-		  forward();
+    for (auto *arg : args) {
+      arg->CalcVal();
+    }
+    forward();
   }
 
   virtual void CalcGrad() {
     backward();
-    for(auto* arg: args) {
-        arg->CalcGrad();
-    } 
+    for (auto *arg : args) {
+      arg->CalcGrad();
+    }
   }
 
   void ApplyGrad(float learning_rate) {
     for (int i = 0; i < val.rows; i++) {
       for (int j = 0; j < val.cols; j++) {
-         val.at(i, j) -= grads_in.at(i, j) * learning_rate;
+        val.at(i, j) -= grads_in.at(i, j) * learning_rate;
       }
     }
   }
 };
 
 static Block Data(int rows, int cols) {
-     Block res({}, rows, cols);
-     return res;
+  Block res({}, rows, cols);
+  return res;
 }
 
-static Block MatMul(Block* a1, Block* a2) {
+static Block MatMul(Block *a1, Block *a2) {
 
-  // Transposed view of the matrix with no overhead. For MatMul back gradient propagation
+  // Transposed view of the matrix with no overhead. For MatMul back gradient
+  // propagation
   struct Transposed {
-    const Matrix& matrix;
+    const Matrix &matrix;
     int rows;
     int cols;
-    Transposed(const Matrix& src) : matrix(src), rows(src.cols), cols(src.rows) {}
-    inline const double& at(int r, int c) const {
-        return matrix.at(c, r);
-    }
+    Transposed(const Matrix &src)
+        : matrix(src), rows(src.cols), cols(src.rows) {}
+    inline const double &at(int r, int c) const { return matrix.at(c, r); }
   };
-
 
   Block res({a1, a2}, a1->val.rows, a2->val.cols);
   res.forward = [a1, a2, &res]() {
-      multiply_matrix(a1->val, a2->val, &res.val);
-    };
-  res.backward = [a1, a2, &res]() {
-      multiply_matrix(Transposed(a1->val), res.grads_in, &a2->grads_in);
-      multiply_matrix(res.grads_in, Transposed(a2->val), &a1->grads_in);
+    multiply_matrix(a1->val, a2->val, &res.val);
   };
-
+  res.backward = [a1, a2, &res]() {
+    multiply_matrix(Transposed(a1->val), res.grads_in, &a2->grads_in);
+    multiply_matrix(res.grads_in, Transposed(a2->val), &a1->grads_in);
+  };
 
   return res;
 }
@@ -164,17 +161,15 @@ using DifFu = std::function<double(double)>;
 
 class Funcs {
 public:
-  static double square(double d) {
-    return d * d;
-  } 
+  static double square(double d) { return d * d; }
 
   static double sigmoid(double x) {
     if (x >= 0) {
-        double z = std::exp(-x);
-        return 1.0 / (1.0 + z);
+      double z = std::exp(-x);
+      return 1.0 / (1.0 + z);
     } else {
-        double z = std::exp(x);
-        return z / (1.0 + z);
+      double z = std::exp(x);
+      return z / (1.0 + z);
     }
   }
 
@@ -183,162 +178,140 @@ public:
     return s * (1.0 - s);
   }
 
-  static double tbd(double x) {
-    return 0;
-  }
+  static double tbd(double x) { return 0; }
 
   static DifFu get_mul_el(double n) {
-    return [n](double d) {
-      return n * d;
-    };
+    return [n](double d) { return n * d; };
   }
 
-  static void for_each_el(const Matrix& in, Matrix* out, DifFu fu) {
+  static void for_each_el(const Matrix &in, Matrix *out, DifFu fu) {
     for (int i = 0; i < in.rows; i++) {
-        for (int j = 0; j < in.cols; j++) {
-            out->at(i, j) = fu(in.at(i, j));
-        }
+      for (int j = 0; j < in.cols; j++) {
+        out->at(i, j) = fu(in.at(i, j));
+      }
     }
-	}
-
+  }
 };
 
-static Block* ElFun(Block* a, DifFu fwd, DifFu bwd) {
-  Block* res = new Block({a}, a->val.rows, a->val.cols);
+static Block *ElFun(Block *a, DifFu fwd, DifFu bwd) {
+  Block *res = new Block({a}, a->val.rows, a->val.cols);
 
-  res->forward =  [a, fwd, res]() {
-        Funcs::for_each_el(a->val, &res->val, fwd);
-      };
-    // backward
+  res->forward = [a, fwd, res]() {
+    Funcs::for_each_el(a->val, &res->val, fwd);
+  };
+  // backward
   res->backward = [a, bwd, res]() {
-        Funcs::for_each_el(a->val, &a->grads_in, bwd);
-        mul_el_matrix(a->grads_in, res->grads_in, &a->grads_in);
-      };
-
+    Funcs::for_each_el(a->val, &a->grads_in, bwd);
+    mul_el_matrix(a->grads_in, res->grads_in, &a->grads_in);
+  };
 
   return res;
 }
 
-static Block* Sqrt(Block* a) {
-  return ElFun(a, &Funcs::square, &Funcs::tbd);
-}
+static Block *Sqrt(Block *a) { return ElFun(a, &Funcs::square, &Funcs::tbd); }
 
 static Block Sigmoid(Block *a) {
   return *ElFun(a, &Funcs::sigmoid, &Funcs::sigmoid_derivative);
 }
 
-static Block* MulEl(Block *a, double n) {
+static Block *MulEl(Block *a, double n) {
   return ElFun(a, Funcs::get_mul_el(n), &Funcs::tbd);
 }
 
+static Block Add(Block *a1, Block *a2) {
+  Block res({a1, a2}, a1->val.rows, a1->val.cols);
 
-static Block Add(Block* a1, Block* a2) {
-   Block  res({a1, a2}, a1->val.rows, a1->val.cols);
+  // TODO: check dimensions
+  res.forward = [a1, a2, &res]() { sum_matrix(a1->val, a2->val, &res.val); };
+  // TODO: backward
 
-     // TODO: check dimensions
-  res.forward = [a1, a2, &res]() {
-          sum_matrix(a1->val, a2->val, &res.val);
-       };
-    // TODO: backward
-
-
-     return res;
+  return res;
 };
-
 
 // Difference
-static Block Dif(Block* a1, Block* a2) {
-   return Add(a1, MulEl(a2, -1));
-};
-
+static Block Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
 
 static Block Sum(Block *a) {
   Block res({a}, 1, 1);
-   
-   res.forward =   [a, &res]() {
-        float s = 0.0;
-        for (int i = 0; i < a->val.rows; i++) {
-           for (int j = 0; j < a->val.cols; j++) {
-              s += a->val.at(i, j);
-           }
-        }
-        res.val.at(0, 0) = s;
-      };
-    res.backward =  [a, &res]() {
-        double grad = res.grads_in.at(0, 0);
-        for(int r = 0; r < a->val.rows; ++r) {
-           for(int c = 0; c < a->val.cols; ++c) {
-               a->grads_in.at(r, c) = grad;
-           }
-        }
-      };
 
+  res.forward = [a, &res]() {
+    float s = 0.0;
+    for (int i = 0; i < a->val.rows; i++) {
+      for (int j = 0; j < a->val.cols; j++) {
+        s += a->val.at(i, j);
+      }
+    }
+    res.val.at(0, 0) = s;
+  };
+  res.backward = [a, &res]() {
+    double grad = res.grads_in.at(0, 0);
+    for (int r = 0; r < a->val.rows; ++r) {
+      for (int c = 0; c < a->val.cols; ++c) {
+        a->grads_in.at(r, c) = grad;
+      }
+    }
+  };
 
   return res;
 }
 
-
-static Block SSE(Block *a1, Block* a2) {
+static Block SSE(Block *a1, Block *a2) {
   Block res({a1, a2}, 1, 1);
-   
-  res.forward =[a1, a2, &res]() {
-        float s = 0.0;
-        for (int i = 0; i < a1->val.rows; i++) {
-           for (int j = 0; j < a1->val.cols; j++) {
-              s += Funcs::square(a2->val.at(i, j) - a1->val.at(i, j));
-           }
-        }
-        res.val.at(0, 0) = s;
-      };
-     res.backward = [a1, a2, &res]() {
-        for (int i = 0; i < a1->val.rows; i++) {
-           for (int j = 0; j < a1->val.cols; j++) {
-              a1->grads_in.at(i, j) = 2* (a1->val.at(i, j) - a2->val.at(i, j));
-           }
-        }
-      };
 
+  res.forward = [a1, a2, &res]() {
+    float s = 0.0;
+    for (int i = 0; i < a1->val.rows; i++) {
+      for (int j = 0; j < a1->val.cols; j++) {
+        s += Funcs::square(a2->val.at(i, j) - a1->val.at(i, j));
+      }
+    }
+    res.val.at(0, 0) = s;
+  };
+  res.backward = [a1, a2, &res]() {
+    for (int i = 0; i < a1->val.rows; i++) {
+      for (int j = 0; j < a1->val.cols; j++) {
+        a1->grads_in.at(i, j) = 2 * (a1->val.at(i, j) - a2->val.at(i, j));
+      }
+    }
+  };
 
   return res;
 }
-
 
 // Binary Cross Enthropy
-// TODO: calc average as a single value. Currently it is consistent with 
+// TODO: calc average as a single value. Currently it is consistent with
 // python impl having same flaw
-static Block BCE(Block *a1, Block* a2) {
+static Block BCE(Block *a1, Block *a2) {
   Block res({a1, a2}, a1->val.rows, a1->val.cols);
-    assert(a1->val.rows == a2->val.rows && "Rows not equal");
-    assert(a1->val.cols == a2->val.cols && "Cols not equal");
+  assert(a1->val.rows == a2->val.rows && "Rows not equal");
+  assert(a1->val.cols == a2->val.cols && "Cols not equal");
 
-	  const auto& y_pred = a1->val;
-		const auto& y_true = a2->val;
+  const auto &y_pred = a1->val;
+  const auto &y_true = a2->val;
 
-   res.forward =   [&y_pred, &y_true, &res]() {
-        double epsilon = 1e-12; // small value to avoid log(0)
-        for (int i = 0; i < y_pred.rows; i++) {
-        	for (int j = 0; j < y_true.cols; j++) {
-            double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
-            double t = y_true.at(i, j);
-            res.val.at(i, j) = -(t * std::log(p) + (1.0 - t) * std::log(1.0 - p));
-          }
-        }
-        // TODO: result matrix should be [1, 1] dimensional and be an average across all elements.
-      };
-      // backward
-   res.backward =   [&y_pred, &y_true, a1]() {
-        double epsilon = 1e-12;
-        for (int i = 0; i < y_pred.rows; i++) {
-          for (int j = 0; j < y_true.cols; j++) {
-             double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
-             double t = y_true.at(i, j);
-             a1->grads_in.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
-          }
-        }
-      };
-
-
+  res.forward = [&y_pred, &y_true, &res]() {
+    double epsilon = 1e-12; // small value to avoid log(0)
+    for (int i = 0; i < y_pred.rows; i++) {
+      for (int j = 0; j < y_true.cols; j++) {
+        double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
+        double t = y_true.at(i, j);
+        res.val.at(i, j) = -(t * std::log(p) + (1.0 - t) * std::log(1.0 - p));
+      }
+    }
+    // TODO: result matrix should be [1, 1] dimensional and be an average across
+    // all elements.
+  };
+  // backward
+  res.backward = [&y_pred, &y_true, a1]() {
+    double epsilon = 1e-12;
+    for (int i = 0; i < y_pred.rows; i++) {
+      for (int j = 0; j < y_true.cols; j++) {
+        double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
+        double t = y_true.at(i, j);
+        a1->grads_in.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
+      }
+    }
+  };
 
   return res;
 }
-
