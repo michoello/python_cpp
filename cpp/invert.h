@@ -99,6 +99,8 @@ struct Block {
   // Backward for gradient propagation
   std::function<void()> backward = []() {};
 
+  std::function<void(Matrix *)> backwarda = [](Matrix *) {};
+
   Matrix grads_in;
 
   Block(const std::vector<Block *> &argz, int r, int c)
@@ -149,9 +151,18 @@ static Block MatMul(Block *a1, Block *a2) {
   res.forward = [a1, a2, &res]() {
     multiply_matrix(a1->val, a2->val, &res.val);
   };
+
+  a1->backwarda = [a1, a2, &res](Matrix* out) {
+    multiply_matrix(res.grads_in, Transposed(a2->val), out);
+  };
+
+  a2->backwarda = [a1, a2, &res](Matrix* out) {
+    multiply_matrix(Transposed(a1->val), res.grads_in, out);
+  };
+
   res.backward = [a1, a2, &res]() {
-    multiply_matrix(Transposed(a1->val), res.grads_in, &a2->grads_in);
-    multiply_matrix(res.grads_in, Transposed(a2->val), &a1->grads_in);
+     a1->backwarda(&a1->grads_in);
+     a2->backwarda(&a2->grads_in);
   };
 
   return res;
