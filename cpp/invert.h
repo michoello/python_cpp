@@ -92,16 +92,15 @@ void multiply_matrix(const T &a, const U &b, Matrix *c) {
 
 struct Block {
   std::vector<Block *> args;
-  Matrix val;
 
   // Forward uses vector of input args, and pointer to result
+  Matrix val;
   std::function<void()> forward = []() {};
+
   // Backward for gradient propagation
-  std::function<void()> backward = []() {};
-
-  std::function<void(Matrix *)> backwarda = [](Matrix *) {};
-
   Matrix grads_in;
+  // TODO: vector of them (or sum?)
+  std::function<void(Matrix *)> backwarda = [](Matrix *) {};
 
   Block(const std::vector<Block *> &argz, int r, int c)
       : args(argz), val(r, c), grads_in(r, c, 1.0) {}
@@ -114,8 +113,8 @@ struct Block {
   }
 
   virtual void CalcGrad() {
-    backward();
     for (auto *arg : args) {
+      arg->backwarda(&arg->grads_in);
       arg->CalcGrad();
     }
   }
@@ -158,11 +157,6 @@ static Block MatMul(Block *a1, Block *a2) {
 
   a2->backwarda = [a1, a2, &res](Matrix* out) {
     multiply_matrix(Transposed(a1->val), res.grads_in, out);
-  };
-
-  res.backward = [a1, a2, &res]() {
-     a1->backwarda(&a1->grads_in);
-     a2->backwarda(&a2->grads_in);
   };
 
   return res;
@@ -210,10 +204,10 @@ static Block *ElFun(Block *a, DifFu fwd, DifFu bwd) {
   res->forward = [a, fwd, res]() {
     Funcs::for_each_el(a->val, &res->val, fwd);
   };
-  // backward
-  res->backward = [a, bwd, res]() {
-    Funcs::for_each_el(a->val, &a->grads_in, bwd);
-    mul_el_matrix(a->grads_in, res->grads_in, &a->grads_in);
+
+  a->backwarda = [a, res, bwd](Matrix* out) {
+    Funcs::for_each_el(a->val, out, bwd);
+    mul_el_matrix(*out, res->grads_in, out);
   };
 
   return res;
@@ -254,11 +248,13 @@ static Block Sum(Block *a) {
     }
     res.val.at(0, 0) = s;
   };
-  res.backward = [a, &res]() {
+
+  a->backwarda = [a, &res](Matrix* out) {
+    // TODO: just fill the "out" with grad value instead of these loops
     double grad = res.grads_in.at(0, 0);
     for (int r = 0; r < a->val.rows; ++r) {
       for (int c = 0; c < a->val.cols; ++c) {
-        a->grads_in.at(r, c) = grad;
+        out->at(r, c) = grad;
       }
     }
   };
@@ -278,13 +274,17 @@ static Block SSE(Block *a1, Block *a2) {
     }
     res.val.at(0, 0) = s;
   };
-  res.backward = [a1, a2, &res]() {
+
+  a1->backwarda = [a1, a2, &res](Matrix* out) {
+    // TODO: create a method that fills in the matrix with func calls.
     for (int i = 0; i < a1->val.rows; i++) {
       for (int j = 0; j < a1->val.cols; j++) {
-        a1->grads_in.at(i, j) = 2 * (a1->val.at(i, j) - a2->val.at(i, j));
+        out->at(i, j) = 2 * (a1->val.at(i, j) - a2->val.at(i, j));
       }
     }
   };
+
+  // TODO: a2 backwarda?
 
   return res;
 }
@@ -312,14 +312,14 @@ static Block BCE(Block *a1, Block *a2) {
     // TODO: result matrix should be [1, 1] dimensional and be an average across
     // all elements.
   };
-  // backward
-  res.backward = [&y_pred, &y_true, a1]() {
+
+  a1->backwarda = [&y_pred, &y_true](Matrix* out) {
     double epsilon = 1e-12;
     for (int i = 0; i < y_pred.rows; i++) {
       for (int j = 0; j < y_true.cols; j++) {
         double p = std::min(std::max(y_pred.at(i, j), epsilon), 1.0 - epsilon);
         double t = y_true.at(i, j);
-        a1->grads_in.at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
+        out->at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
       }
     }
   };
