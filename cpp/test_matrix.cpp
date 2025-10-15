@@ -425,6 +425,29 @@ TEST_CASE(sigmoid_with_grads) {
   CHECK(assertEqualVectors(mm.grads_in.value(), {{0.2492, 0.2495, 0.2489}}));
 }
 
+TEST_CASE(sigmoid_with_gradas) {
+
+  Block x = Data(1, 2);
+  x.val.set_data({{0.1, -0.2}});
+
+  Block w = Data(2, 3);
+  w.val.set_data({{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
+
+  Block mm = MatMul(&x, &w);
+
+  Block sb = Sigmoid(&mm);
+
+  sb.CalcVal();
+  CHECK(assertEqualVectors(sb.val.value(), {{0.527, 0.478, 0.468}}));
+
+  mm.CalcGrada();
+  // TODO: add bce loss and check
+  // see test_bce_loss in python tests
+  CHECK(assertEqualVectors(mm.grads_in.value(), {{0.2492, 0.2495, 0.2489}}));
+}
+
+
+
 // see test_bce_loss in python tests
 TEST_CASE(bce_with_grads) {
   Block ypred = Data(1, 3);
@@ -438,10 +461,26 @@ TEST_CASE(bce_with_grads) {
   CHECK(assertEqualVectors(bce.val.value(), {{0.749, 0.738, 0.691}}));
 
   bce.CalcGrad();
-  // CHECK(assertEqualVectors(bce.grads_in.value(), {{ 2.11416, -2.09205, 0
-  // }}));
   CHECK(assertEqualVectors(ypred.grads_in.value(), {{2.11416, -2.09205, 0}}));
 }
+
+
+// see test_bce_loss in python tests
+TEST_CASE(bce_with_gradas) {
+  Block ypred = Data(1, 3);
+  ypred.val.set_data({{0.527, 0.478, 0.468}});
+  Block ytrue = Data(1, 3);
+  ytrue.val.set_data({{0, 1, 0.468}});
+
+  Block bce = BCE(&ypred, &ytrue);
+
+  bce.CalcVal();
+  CHECK(assertEqualVectors(bce.val.value(), {{0.749, 0.738, 0.691}}));
+
+  ypred.CalcGrada();
+  CHECK(assertEqualVectors(ypred.grads_in.value(), {{2.11416, -2.09205, 0}}));
+}
+
 
 TEST_CASE(full_layer_with_loss_with_grads) {
   Block x = Data(1, 2);
@@ -466,6 +505,9 @@ TEST_CASE(full_layer_with_loss_with_grads) {
 
   // Calc diff and check the loss values
   bce.CalcGrad();
+
+  // TODO: make this work:
+  //w.CalcGrada();
   // Derivative of loss against itself is ones
   CHECK(assertEqualVectors(bce.grads_in.value(), {{1, 1, 1}}));
 
