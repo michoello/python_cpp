@@ -97,6 +97,25 @@ struct Block {
   Matrix val;
   std::function<void(Matrix *)> forward = [](Matrix *) {};
 
+  struct BackBlock {
+    std::vector<Block *> args;
+    Matrix val;
+    // TODO: vector of them (or sum?)
+    std::function<void(Matrix *)> fun = [](Matrix *) {};
+
+    BackBlock(const std::vector<Block *> &argz, int r, int c): args(argz), val(r, c) {
+    }
+
+    virtual void CalcVal() {
+      for (auto *arg : args) {
+        arg->back->CalcVal();
+      }
+      fun(&val);
+    }
+  };
+
+  BackBlock* back;
+
   // Backward for gradient propagation
   std::vector<Block *> dargs;
   Matrix grads_in;
@@ -109,7 +128,9 @@ struct Block {
       : args(argz), val(r, c), grads_in(r, c, 1.0) {
      for(Block* arg: args) {
          arg->dargs.push_back(this);
-     }      
+         arg->back->args.push_back(this);
+     }
+     back = new BackBlock({}, r, c);
   }
 
   void CalcVal() {
@@ -120,10 +141,7 @@ struct Block {
   }
 
   virtual void CalcGrada() {
-    for (auto *darg : dargs) {
-      darg->CalcGrada();
-    }
-    backward(&grads_in);
+    back->CalcVal();
   }
 
 
@@ -166,10 +184,12 @@ static Block MatMul(Block *a1, Block *a2) {
     multiply_matrix(a1->val, a2->val, out);
   };
 
+  a1->back->fun =
   a1->backward = [a1, a2, &res](Matrix* out) {
     multiply_matrix(res.grads_in, Transposed(a2->val), out);
   };
 
+  a2->back->fun =
   a2->backward = [a1, a2, &res](Matrix* out) {
     multiply_matrix(Transposed(a1->val), res.grads_in, out);
   };
@@ -220,6 +240,7 @@ static Block *ElFun(Block *a, DifFu fwd, DifFu bwd) {
     Funcs::for_each_el(a->val, out, fwd);
   };
 
+  a->back->fun =
   a->backward = [a, res, bwd](Matrix* out) {
     Funcs::for_each_el(a->val, out, bwd);
     mul_el_matrix(*out, res->grads_in, out);
@@ -264,6 +285,7 @@ static Block Sum(Block *a) {
     out->at(0, 0) = s;
   };
 
+  a->back->fun =
   a->backward = [a, &res](Matrix* out) {
     // TODO: just fill the "out" with grad value instead of these loops
     double grad = res.grads_in.at(0, 0);
@@ -290,6 +312,7 @@ static Block SSE(Block *a1, Block *a2) {
     out->at(0, 0) = s;
   };
 
+  a1->back->fun =
   a1->backward = [a1, a2, &res](Matrix* out) {
     // TODO: create a method that fills in the matrix with func calls.
     for (int i = 0; i < a1->val.rows; i++) {
@@ -328,6 +351,7 @@ static Block BCE(Block *a1, Block *a2) {
     // all elements.
   };
 
+  a1->back->fun =
   a1->backward = [&y_pred, &y_true](Matrix* out) {
     double epsilon = 1e-12;
     for (int i = 0; i < y_pred.rows; i++) {
