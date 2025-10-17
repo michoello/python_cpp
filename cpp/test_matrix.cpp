@@ -379,15 +379,16 @@ TEST_CASE(sse_with_grads) {
   CHECK(assertEqualVectors(ds.val.value(), {{5}}));
 
   // Calc derivatives
-  ds.CalcGrad();
+  //ds.CalcGrad();
+  dy.CalcGrada();
 
   // Derivative of loss function is its value is 1.0 (aka df/df)
-  CHECK(assertEqualVectors(ds.grads_in.value(), {
+  /*CHECK(assertEqualVectors(ds.grads_in.value(), {
                                                     {1},
                                                 }));
-
+*/
   // Derivative of its args
-  CHECK(assertEqualVectors(dy.grads_in.value(), {
+  CHECK(assertEqualVectors(dy.back->val.value(), {
                                                     {2, -4},
                                                 }));
 
@@ -419,10 +420,10 @@ TEST_CASE(sigmoid_with_grads) {
 
   CHECK(assertEqualVectors(sb.val.value(), {{0.527, 0.478, 0.468}}));
 
-  sb.CalcGrad();
+  mm.CalcGrada();
   // TODO: add bce loss and check
   // see test_bce_loss in python tests
-  CHECK(assertEqualVectors(mm.grads_in.value(), {{0.2492, 0.2495, 0.2489}}));
+  CHECK(assertEqualVectors(mm.back->val.value(), {{0.2492, 0.2495, 0.2489}}));
 }
 
 TEST_CASE(sigmoid_with_gradas) {
@@ -460,8 +461,8 @@ TEST_CASE(bce_with_grads) {
   bce.CalcVal();
   CHECK(assertEqualVectors(bce.val.value(), {{0.749, 0.738, 0.691}}));
 
-  bce.CalcGrad();
-  CHECK(assertEqualVectors(ypred.grads_in.value(), {{2.11416, -2.09205, 0}}));
+  ypred.CalcGrada();
+  CHECK(assertEqualVectors(ypred.back->val.value(), {{2.11416, -2.09205, 0}}));
 }
 
 

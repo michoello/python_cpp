@@ -150,7 +150,9 @@ struct Block {
 
   virtual void CalcGrad() {
     for (auto *arg : args) {
+      // TODO: deprecate grads_in and remove next line
       arg->backward(&arg->grads_in);
+      arg->backward(&arg->back->val);
       arg->CalcGrad();
     }
   }
@@ -158,7 +160,9 @@ struct Block {
   void ApplyGrad(float learning_rate) {
     for (int i = 0; i < val.rows; i++) {
       for (int j = 0; j < val.cols; j++) {
-        val.at(i, j) -= grads_in.at(i, j) * learning_rate;
+        //TODO: delete this line
+        //val.at(i, j) -= grads_in.at(i, j) * learning_rate;
+        val.at(i, j) -= back->val.at(i, j) * learning_rate;
       }
     }
   }
