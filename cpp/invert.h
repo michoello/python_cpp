@@ -98,17 +98,17 @@ struct Block {
   std::function<void(Matrix *)> forward = [](Matrix *) {};
 
   struct BackBlock {
-    std::vector<Block *> args;
+    std::vector<BackBlock *> args;
     Matrix val;
     // TODO: vector of them (or sum?)
     std::function<void(Matrix *)> fun = [](Matrix *) {};
 
-    BackBlock(const std::vector<Block *> &argz, int r, int c): args(argz), val(r, c) {
+    BackBlock(const std::vector<BackBlock *> &argz, int r, int c): args(argz), val(r, c) {
     }
 
     virtual void CalcVal() {
       for (auto *arg : args) {
-        arg->back->CalcVal();
+        arg->CalcVal();
       }
       fun(&val);
     }
@@ -128,9 +128,12 @@ struct Block {
       : args(argz), val(r, c), grads_in(r, c, 1.0) {
      for(Block* arg: args) {
          arg->dargs.push_back(this);
-         arg->back->args.push_back(this);
      }
+
      back = new BackBlock({}, r, c);
+     for(Block* arg: args) {
+         arg->back->args.push_back(this->back);
+     }
   }
 
   void CalcVal() {
