@@ -234,12 +234,10 @@ TEST_CASE(matmul_with_grads) {
                                                {15, 18, 21},
                                            }));
 
-  // Set custom grads in
-  dc.grads_in.set_data({{12, 14, 16}});
   dc.CalcGrad();
-  CHECK(assertEqualVectors(db.grads_in.value(), {{12, 14, 16}, {24, 28, 32}}));
+  CHECK(assertEqualVectors(db.back->val.value(), {{1, 1, 1}, {2, 2, 2}}));
 
-  CHECK(assertEqualVectors(da.grads_in.value(), {{172, 298}}));
+  CHECK(assertEqualVectors(da.back->val.value(), {{12, 21}}));
 
   // TODO: see test_mse_loss in test_hello.py and extend this test with loss
 }
@@ -339,8 +337,8 @@ TEST_CASE(sum_mat) {
                                                {21},
                                            }));
 
-  ds.CalcGrad();
-  CHECK(assertEqualVectors(da.grads_in.value(), {
+  da.CalcGrada();
+  CHECK(assertEqualVectors(da.back->val.value(), {
                                                     {1, 1, 1},
                                                     {1, 1, 1},
                                                 }));
@@ -379,14 +377,12 @@ TEST_CASE(sse_with_grads) {
   CHECK(assertEqualVectors(ds.val.value(), {{5}}));
 
   // Calc derivatives
-  //ds.CalcGrad();
   dy.CalcGrada();
 
   // Derivative of loss function is its value is 1.0 (aka df/df)
-  /*CHECK(assertEqualVectors(ds.grads_in.value(), {
+  CHECK(assertEqualVectors(ds.back->val.value(), {
                                                     {1},
                                                 }));
-*/
   // Derivative of its args
   CHECK(assertEqualVectors(dy.back->val.value(), {
                                                     {2, -4},
@@ -479,7 +475,6 @@ TEST_CASE(bce_with_gradas) {
   CHECK(assertEqualVectors(bce.val.value(), {{0.749, 0.738, 0.691}}));
 
   ypred.CalcGrada();
-  //CHECK(assertEqualVectors(ypred.grads_in.value(), {{2.11416, -2.09205, 0}}));
   CHECK(assertEqualVectors(ypred.back->val.value(), {{2.11416, -2.09205, 0}}));
 }
 
@@ -511,15 +506,15 @@ TEST_CASE(full_layer_with_loss_with_grads) {
   // TODO: make this work:
   //w.CalcGrada();
   // Derivative of loss against itself is ones
-  CHECK(assertEqualVectors(bce.grads_in.value(), {{1, 1, 1}}));
+  CHECK(assertEqualVectors(bce.back->val.value(), {{1, 1, 1}}));
 
   // Make sure the gradient flows backwards
   // Check sigmoid diff
-  CHECK(assertEqualVectors(sb.grads_in.value(), {{2.116, -2.094, -0.002}}));
+  CHECK(assertEqualVectors(sb.back->val.value(), {{2.116, -2.094, -0.002}}));
 
   // Check the matrix diff
   CHECK(assertEqualVectors(
-      w.grads_in.value(),
+      w.back->val.value(),
       {{0.0527, -0.052, -4.543 / 100000}, {-0.105, 0.104, 9.086 / 100000}}));
 
   // TODO: apply grads to w, calc loss value and check that it is reduced
