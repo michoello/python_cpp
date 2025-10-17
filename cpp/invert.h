@@ -95,35 +95,19 @@ struct Block {
   // Forward uses vector of input args, and pointer to result
   std::vector<Block *> args;
   Matrix val;
-  std::function<void(Matrix *)> forward = [](Matrix *) {};
-
-  struct BackBlock {
-    std::vector<BackBlock *> args;
-    Matrix val;
-    // TODO: vector of them (or sum?)
-    std::function<void(Matrix *)> fun = [](Matrix *) {};
-
-    BackBlock(const std::vector<BackBlock *> &argz, int r, int c): args(argz), val(r, c, 1.0) {
-    }
-
-    virtual void CalcVal() {
-      for (auto *arg : args) {
-        arg->CalcVal();
-      }
-      fun(&val);
-    }
-  };
+  std::function<void(Matrix *)> fun = [](Matrix *) {};
 
   // Backward for gradient propagation
-  BackBlock* back;
+  Block* back;
 
   // -------
-  Block(const std::vector<Block *> &argz, int r, int c)
-      : args(argz), val(r, c), back(nullptr) { 
-
-     back = new BackBlock({}, r, c);
-     for(Block* arg: args) {
+  Block(const std::vector<Block *> &argz, int r, int c, bool fwd=true)
+      : args(argz), val(r, c, 1.0), back(nullptr) { 
+     if(fwd) {
+       back = new Block({}, r, c, false);
+       for(Block* arg: args) {
          arg->back->args.push_back(this->back);
+       }
      }
   }
 
@@ -131,7 +115,7 @@ struct Block {
     for (auto *arg : args) {
       arg->CalcVal();
     }
-    forward(&val);
+    fun(&val);
   }
 
   virtual void CalcGrada() {
@@ -175,7 +159,7 @@ static Block MatMul(Block *a1, Block *a2) {
   };
 
   Block res({a1, a2}, a1->val.rows, a2->val.cols);
-  res.forward = [a1, a2, &res](Matrix *out) {
+  res.fun = [a1, a2, &res](Matrix *out) {
     multiply_matrix(a1->val, a2->val, out);
   };
 
@@ -231,7 +215,7 @@ public:
 static Block *ElFun(Block *a, DifFu fwd, DifFu bwd) {
   Block *res = new Block({a}, a->val.rows, a->val.cols);
 
-  res->forward = [a, fwd, res](Matrix* out) {
+  res->fun = [a, fwd, res](Matrix* out) {
     Funcs::for_each_el(a->val, out, fwd);
   };
 
@@ -258,7 +242,7 @@ static Block Add(Block *a1, Block *a2) {
   Block res({a1, a2}, a1->val.rows, a1->val.cols);
 
   // TODO: check dimensions
-  res.forward = [a1, a2, &res](Matrix* out) { sum_matrix(a1->val, a2->val, out); };
+  res.fun = [a1, a2, &res](Matrix* out) { sum_matrix(a1->val, a2->val, out); };
   // TODO: backward
 
   return res;
@@ -270,7 +254,7 @@ static Block Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
 static Block Sum(Block *a) {
   Block res({a}, 1, 1);
 
-  res.forward = [a, &res](Matrix* out) {
+  res.fun = [a, &res](Matrix* out) {
     float s = 0.0;
     for (int i = 0; i < a->val.rows; i++) {
       for (int j = 0; j < a->val.cols; j++) {
@@ -297,7 +281,7 @@ static Block Sum(Block *a) {
 static Block SSE(Block *a1, Block *a2) {
   Block res({a1, a2}, 1, 1);
 
-  res.forward = [a1, a2, &res](Matrix* out) {
+  res.fun = [a1, a2, &res](Matrix* out) {
     float s = 0.0;
     for (int i = 0; i < a1->val.rows; i++) {
       for (int j = 0; j < a1->val.cols; j++) {
@@ -333,7 +317,7 @@ static Block BCE(Block *a1, Block *a2) {
   const auto &y_pred = a1->val;
   const auto &y_true = a2->val;
 
-  res.forward = [&y_pred, &y_true, &res](Matrix* out) {
+  res.fun = [&y_pred, &y_true, &res](Matrix* out) {
     double epsilon = 1e-12; // small value to avoid log(0)
     for (int i = 0; i < y_pred.rows; i++) {
       for (int j = 0; j < y_true.cols; j++) {
