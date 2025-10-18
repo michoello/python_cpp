@@ -93,16 +93,24 @@ void multiply_matrix(const T &a, const U &b, Matrix *c) {
 struct Block {
 
   // Forward uses vector of input args, and pointer to result
+private:
+  Matrix _val;
+
+public:
   std::vector<Block *> args;
-  Matrix val;
   std::function<void(Matrix *)> fun = [](Matrix *) {};
+
+  Matrix& val() { return _val; }
+  const Matrix& val() const { return _val; }
+
+
 
   // Backward for gradient propagation
   Block* back;
 
   // -------
   Block(const std::vector<Block *> &argz, int r, int c, bool fwd=true)
-      : args(argz), val(r, c, 1.0), back(nullptr) { 
+      : args(argz), _val(r, c, 1.0), back(nullptr) { 
      if(fwd) {
        back = new Block({}, r, c, false);
        for(Block* arg: args) {
@@ -115,7 +123,7 @@ struct Block {
     for (auto *arg : args) {
       arg->CalcVal();
     }
-    fun(&val);
+    fun(&_val);
   }
 
   virtual void CalcGrada() {
@@ -125,16 +133,15 @@ struct Block {
 
   virtual void CalcGrad() {
     for (auto *arg : args) {
-      //arg->backward(&arg->back->val);
       arg->back->CalcVal();
       arg->CalcGrad();
     }
   }
 
   void ApplyGrad(float learning_rate) {
-    for (int i = 0; i < val.rows; i++) {
-      for (int j = 0; j < val.cols; j++) {
-        val.at(i, j) -= back->val.at(i, j) * learning_rate;
+    for (int i = 0; i < val().rows; i++) {
+      for (int j = 0; j < val().cols; j++) {
+        val().at(i, j) -= back->val().at(i, j) * learning_rate;
       }
     }
   }
@@ -158,19 +165,19 @@ static Block MatMul(Block *a1, Block *a2) {
     inline const double &at(int r, int c) const { return matrix.at(c, r); }
   };
 
-  Block res({a1, a2}, a1->val.rows, a2->val.cols);
+  Block res({a1, a2}, a1->val().rows, a2->val().cols);
   res.fun = [a1, a2, &res](Matrix *out) {
-    multiply_matrix(a1->val, a2->val, out);
+    multiply_matrix(a1->val(), a2->val(), out);
   };
 
   a1->back->fun =
    [a1, a2, &res](Matrix* out) {
-    multiply_matrix(res.back->val, Transposed(a2->val), out);
+    multiply_matrix(res.back->val(), Transposed(a2->val()), out);
   };
 
   a2->back->fun =
    [a1, a2, &res](Matrix* out) {
-    multiply_matrix(Transposed(a1->val), res.back->val, out);
+    multiply_matrix(Transposed(a1->val()), res.back->val(), out);
   };
 
   return res;
@@ -213,16 +220,16 @@ public:
 };
 
 static Block *ElFun(Block *a, DifFu fwd, DifFu bwd) {
-  Block *res = new Block({a}, a->val.rows, a->val.cols);
+  Block *res = new Block({a}, a->val().rows, a->val().cols);
 
   res->fun = [a, fwd, res](Matrix* out) {
-    Funcs::for_each_el(a->val, out, fwd);
+    Funcs::for_each_el(a->val(), out, fwd);
   };
 
   a->back->fun =
    [a, res, bwd](Matrix* out) {
-    Funcs::for_each_el(a->val, out, bwd);
-    mul_el_matrix(*out, res->back->val, out);
+    Funcs::for_each_el(a->val(), out, bwd);
+    mul_el_matrix(*out, res->back->val(), out);
   };
 
   return res;
@@ -239,10 +246,10 @@ static Block *MulEl(Block *a, double n) {
 }
 
 static Block Add(Block *a1, Block *a2) {
-  Block res({a1, a2}, a1->val.rows, a1->val.cols);
+  Block res({a1, a2}, a1->val().rows, a1->val().cols);
 
   // TODO: check dimensions
-  res.fun = [a1, a2, &res](Matrix* out) { sum_matrix(a1->val, a2->val, out); };
+  res.fun = [a1, a2, &res](Matrix* out) { sum_matrix(a1->val(), a2->val(), out); };
   // TODO: backward
 
   return res;
@@ -256,9 +263,9 @@ static Block Sum(Block *a) {
 
   res.fun = [a, &res](Matrix* out) {
     float s = 0.0;
-    for (int i = 0; i < a->val.rows; i++) {
-      for (int j = 0; j < a->val.cols; j++) {
-        s += a->val.at(i, j);
+    for (int i = 0; i < a->val().rows; i++) {
+      for (int j = 0; j < a->val().cols; j++) {
+        s += a->val().at(i, j);
       }
     }
     out->at(0, 0) = s;
@@ -267,9 +274,9 @@ static Block Sum(Block *a) {
   a->back->fun =
    [a, &res](Matrix* out) {
     // TODO: just fill the "out" with grad value instead of these loops
-    double grad = res.back->val.at(0, 0);
-    for (int r = 0; r < a->val.rows; ++r) {
-      for (int c = 0; c < a->val.cols; ++c) {
+    double grad = res.back->val().at(0, 0);
+    for (int r = 0; r < a->val().rows; ++r) {
+      for (int c = 0; c < a->val().cols; ++c) {
         out->at(r, c) = grad;
       }
     }
@@ -283,9 +290,9 @@ static Block SSE(Block *a1, Block *a2) {
 
   res.fun = [a1, a2, &res](Matrix* out) {
     float s = 0.0;
-    for (int i = 0; i < a1->val.rows; i++) {
-      for (int j = 0; j < a1->val.cols; j++) {
-        s += Funcs::square(a2->val.at(i, j) - a1->val.at(i, j));
+    for (int i = 0; i < a1->val().rows; i++) {
+      for (int j = 0; j < a1->val().cols; j++) {
+        s += Funcs::square(a2->val().at(i, j) - a1->val().at(i, j));
       }
     }
     out->at(0, 0) = s;
@@ -294,9 +301,9 @@ static Block SSE(Block *a1, Block *a2) {
   a1->back->fun =
    [a1, a2, &res](Matrix* out) {
     // TODO: create a method that fills in the matrix with func calls.
-    for (int i = 0; i < a1->val.rows; i++) {
-      for (int j = 0; j < a1->val.cols; j++) {
-        out->at(i, j) = 2 * (a1->val.at(i, j) - a2->val.at(i, j));
+    for (int i = 0; i < a1->val().rows; i++) {
+      for (int j = 0; j < a1->val().cols; j++) {
+        out->at(i, j) = 2 * (a1->val().at(i, j) - a2->val().at(i, j));
       }
     }
   };
@@ -310,12 +317,12 @@ static Block SSE(Block *a1, Block *a2) {
 // TODO: calc average as a single value. Currently it is consistent with
 // python impl having same flaw
 static Block BCE(Block *a1, Block *a2) {
-  Block res({a1, a2}, a1->val.rows, a1->val.cols);
-  assert(a1->val.rows == a2->val.rows && "Rows not equal");
-  assert(a1->val.cols == a2->val.cols && "Cols not equal");
+  Block res({a1, a2}, a1->val().rows, a1->val().cols);
+  assert(a1->val().rows == a2->val().rows && "Rows not equal");
+  assert(a1->val().cols == a2->val().cols && "Cols not equal");
 
-  const auto &y_pred = a1->val;
-  const auto &y_true = a2->val;
+  const auto &y_pred = a1->val();
+  const auto &y_true = a2->val();
 
   res.fun = [&y_pred, &y_true, &res](Matrix* out) {
     double epsilon = 1e-12; // small value to avoid log(0)
