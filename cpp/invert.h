@@ -3,6 +3,7 @@
  *
  */
 
+
 #include <cassert>
 #include <cmath>
 #include <functional>
@@ -95,15 +96,16 @@ struct Block {
   // Forward uses vector of input args, and pointer to result
 private:
   Matrix _val;
+  std::vector<Block *> args;
 
 public:
-  std::vector<Block *> args;
   std::function<void(Matrix *)> fun = [](Matrix *) {};
 
   Matrix& val() { return _val; }
   const Matrix& val() const { return _val; }
 
-
+  template <typename F> 
+  void set_fun(F&& f) { fun = std::forward<F>(f); }
 
   // Backward for gradient propagation
   Block* back;
@@ -163,22 +165,22 @@ static Block MatMul(Block *a1, Block *a2) {
     Transposed(const Matrix &src)
         : matrix(src), rows(src.cols), cols(src.rows) {}
     inline const double &at(int r, int c) const { return matrix.at(c, r); }
-  };
+  }; 
 
   Block res({a1, a2}, a1->val().rows, a2->val().cols);
-  res.fun = [a1, a2, &res](Matrix *out) {
+  res.set_fun([a1, a2, &res](Matrix *out) {
     multiply_matrix(a1->val(), a2->val(), out);
-  };
+  });
 
-  a1->back->fun =
+  a1->back->set_fun(
    [a1, a2, &res](Matrix* out) {
     multiply_matrix(res.back->val(), Transposed(a2->val()), out);
-  };
+  });
 
-  a2->back->fun =
+  a2->back->set_fun(
    [a1, a2, &res](Matrix* out) {
     multiply_matrix(Transposed(a1->val()), res.back->val(), out);
-  };
+  });
 
   return res;
 }
@@ -222,15 +224,15 @@ public:
 static Block *ElFun(Block *a, DifFu fwd, DifFu bwd) {
   Block *res = new Block({a}, a->val().rows, a->val().cols);
 
-  res->fun = [a, fwd, res](Matrix* out) {
+  res->set_fun( [a, fwd, res](Matrix* out) {
     Funcs::for_each_el(a->val(), out, fwd);
-  };
+  });
 
-  a->back->fun =
+  a->back->set_fun(
    [a, res, bwd](Matrix* out) {
     Funcs::for_each_el(a->val(), out, bwd);
     mul_el_matrix(*out, res->back->val(), out);
-  };
+  });
 
   return res;
 }
@@ -249,7 +251,7 @@ static Block Add(Block *a1, Block *a2) {
   Block res({a1, a2}, a1->val().rows, a1->val().cols);
 
   // TODO: check dimensions
-  res.fun = [a1, a2, &res](Matrix* out) { sum_matrix(a1->val(), a2->val(), out); };
+  res.set_fun([a1, a2, &res](Matrix* out) { sum_matrix(a1->val(), a2->val(), out); });
   // TODO: backward
 
   return res;
@@ -261,7 +263,7 @@ static Block Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
 static Block Sum(Block *a) {
   Block res({a}, 1, 1);
 
-  res.fun = [a, &res](Matrix* out) {
+  res.set_fun([a, &res](Matrix* out) {
     float s = 0.0;
     for (int i = 0; i < a->val().rows; i++) {
       for (int j = 0; j < a->val().cols; j++) {
@@ -269,9 +271,9 @@ static Block Sum(Block *a) {
       }
     }
     out->at(0, 0) = s;
-  };
+  });
 
-  a->back->fun =
+  a->back->set_fun(
    [a, &res](Matrix* out) {
     // TODO: just fill the "out" with grad value instead of these loops
     double grad = res.back->val().at(0, 0);
@@ -280,7 +282,7 @@ static Block Sum(Block *a) {
         out->at(r, c) = grad;
       }
     }
-  };
+  });
 
   return res;
 }
@@ -288,7 +290,7 @@ static Block Sum(Block *a) {
 static Block SSE(Block *a1, Block *a2) {
   Block res({a1, a2}, 1, 1);
 
-  res.fun = [a1, a2, &res](Matrix* out) {
+  res.set_fun([a1, a2, &res](Matrix* out) {
     float s = 0.0;
     for (int i = 0; i < a1->val().rows; i++) {
       for (int j = 0; j < a1->val().cols; j++) {
@@ -296,9 +298,9 @@ static Block SSE(Block *a1, Block *a2) {
       }
     }
     out->at(0, 0) = s;
-  };
+  });
 
-  a1->back->fun =
+  a1->back->set_fun(
    [a1, a2, &res](Matrix* out) {
     // TODO: create a method that fills in the matrix with func calls.
     for (int i = 0; i < a1->val().rows; i++) {
@@ -306,7 +308,7 @@ static Block SSE(Block *a1, Block *a2) {
         out->at(i, j) = 2 * (a1->val().at(i, j) - a2->val().at(i, j));
       }
     }
-  };
+  });
 
   // TODO: a2 backward?
 
@@ -324,7 +326,7 @@ static Block BCE(Block *a1, Block *a2) {
   const auto &y_pred = a1->val();
   const auto &y_true = a2->val();
 
-  res.fun = [&y_pred, &y_true, &res](Matrix* out) {
+  res.set_fun([&y_pred, &y_true, &res](Matrix* out) {
     double epsilon = 1e-12; // small value to avoid log(0)
     for (int i = 0; i < y_pred.rows; i++) {
       for (int j = 0; j < y_true.cols; j++) {
@@ -335,9 +337,9 @@ static Block BCE(Block *a1, Block *a2) {
     }
     // TODO: result matrix should be [1, 1] dimensional and be an average across
     // all elements.
-  };
+  });
 
-  a1->back->fun =
+  a1->back->set_fun(
    [&y_pred, &y_true](Matrix* out) {
     double epsilon = 1e-12;
     for (int i = 0; i < y_pred.rows; i++) {
@@ -347,7 +349,7 @@ static Block BCE(Block *a1, Block *a2) {
         out->at(i, j) = -(t / p) + ((1.0 - t) / (1.0 - p));
       }
     }
-  };
+  });
 
   return res;
 }
