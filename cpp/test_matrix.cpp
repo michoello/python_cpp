@@ -234,8 +234,8 @@ TEST_CASE(matmul_with_grads) {
                                                {15, 18, 21},
                                            }));
 
-  da.CalcGrada();
-  db.CalcGrada();
+  da.CalcGrad();
+  db.CalcGrad();
   CHECK(assertEqualVectors(db.back->val().value(), {{1, 1, 1}, {2, 2, 2}}));
 
   CHECK(assertEqualVectors(da.back->val().value(), {{12, 21}}));
@@ -338,7 +338,7 @@ TEST_CASE(sum_mat) {
                                                {21},
                                            }));
 
-  da.CalcGrada();
+  da.CalcGrad();
   CHECK(assertEqualVectors(da.back->val().value(), {
                                                     {1, 1, 1},
                                                     {1, 1, 1},
@@ -378,7 +378,7 @@ TEST_CASE(sse_with_grads) {
   CHECK(assertEqualVectors(ds.val().value(), {{5}}));
 
   // Calc derivatives
-  dy.CalcGrada();
+  dy.CalcGrad();
 
   // Derivative of loss function is its value is 1.0 (aka df/df)
   CHECK(assertEqualVectors(ds.back->val().value(), {
@@ -417,7 +417,7 @@ TEST_CASE(sigmoid_with_grads) {
 
   CHECK(assertEqualVectors(sb.val().value(), {{0.527, 0.478, 0.468}}));
 
-  mm.CalcGrada();
+  mm.CalcGrad();
   // TODO: add bce loss and check
   // see test_bce_loss in python tests
   CHECK(assertEqualVectors(mm.back->val().value(), {{0.2492, 0.2495, 0.2489}}));
@@ -438,7 +438,7 @@ TEST_CASE(sigmoid_with_gradas) {
   sb.CalcVal();
   CHECK(assertEqualVectors(sb.val().value(), {{0.527, 0.478, 0.468}}));
 
-  mm.CalcGrada();
+  mm.CalcGrad();
   // TODO: add bce loss and check
   // see test_bce_loss in python tests
   CHECK(assertEqualVectors(mm.back->val().value(), {{0.2492, 0.2495, 0.2489}}));
@@ -458,7 +458,7 @@ TEST_CASE(bce_with_grads) {
   bce.CalcVal();
   CHECK(assertEqualVectors(bce.val().value(), {{0.749, 0.738, 0.691}}));
 
-  ypred.CalcGrada();
+  ypred.CalcGrad();
   CHECK(assertEqualVectors(ypred.back->val().value(), {{2.11416, -2.09205, 0}}));
 }
 
@@ -475,7 +475,7 @@ TEST_CASE(bce_with_gradas) {
   bce.CalcVal();
   CHECK(assertEqualVectors(bce.val().value(), {{0.749, 0.738, 0.691}}));
 
-  ypred.CalcGrada();
+  ypred.CalcGrad();
   CHECK(assertEqualVectors(ypred.back->val().value(), {{2.11416, -2.09205, 0}}));
 }
 
@@ -502,12 +502,9 @@ TEST_CASE(full_layer_with_loss_with_grads) {
   CHECK(assertEqualVectors(bce.val().value(), {{0.75, 0.739, 0.691}}));
 
   // Calc diff and check the loss values
-  //bce.CalcGrad();
-  w.CalcGrada();
-  x.CalcGrada();
+  w.CalcGrad();
+  x.CalcGrad();
 
-  // TODO: make this work:
-  //w.CalcGrada();
   // Derivative of loss against itself is ones
   CHECK(assertEqualVectors(bce.back->val().value(), {{1, 1, 1}}));
 

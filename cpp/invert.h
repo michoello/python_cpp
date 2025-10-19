@@ -92,13 +92,9 @@ void multiply_matrix(const T &a, const U &b, Matrix *c) {
 }
 
 
-struct Bluck {
-
-  // Forward uses vector of input args, and pointer to result
-private:
-public:
+struct LazyFunc {
   Matrix _val;
-  std::vector<Bluck *> args;
+  std::vector<LazyFunc *> args;
   std::function<void(Matrix *)> fun = [](Matrix *) {};
 
   Matrix& val() { return _val; }
@@ -107,7 +103,7 @@ public:
   template <typename F> 
   void set_fun(F&& f) { fun = std::forward<F>(f); }
 
-  Bluck(const std::vector<Bluck *> &argz, int r, int c)
+  LazyFunc(const std::vector<LazyFunc *> &argz, int r, int c)
       : args(argz), _val(r, c, 1.0) { 
   }
 
@@ -118,9 +114,6 @@ public:
     fun(&val());
   }
 };
-
-
-
 
 struct Block {
 
@@ -137,18 +130,18 @@ struct Block {
   }
 
   // Backward for gradient propagation
-  Bluck* fowd = nullptr;
-  Bluck* back = nullptr;
+  LazyFunc* fowd = nullptr;
+  LazyFunc* back = nullptr;
 
   // -------
   Block(const std::vector<Block *> &argz, int r, int c) { 
 
-     fowd = new Bluck({}, r, c);
+     fowd = new LazyFunc({}, r, c);
      for(Block* arg: argz) {
        fowd->args.push_back(arg->fowd);
      }
 
-     back = new Bluck({}, r, c);
+     back = new LazyFunc({}, r, c);
      for(Block* arg: argz) {
          arg->back->args.push_back(this->back);
      }
@@ -161,15 +154,8 @@ struct Block {
     fowd->fun(&val());
   }
 
-  virtual void CalcGrada() {
-    back->CalcVal();
-  }
-
   virtual void CalcGrad() {
-    for (auto *arg : fowd->args) {
-      //arg->back->CalcVal();
-      //arg->CalcGrad();
-    }
+    back->CalcVal();
   }
 
   void ApplyGrad(float learning_rate) {
