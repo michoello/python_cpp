@@ -97,24 +97,45 @@ struct Block {
 private:
   Matrix _val;
   std::vector<Block *> args;
-
-public:
   std::function<void(Matrix *)> fun = [](Matrix *) {};
 
-  Matrix& val() { return _val; }
-  const Matrix& val() const { return _val; }
+public:
+
+  Matrix& val() { 
+     if(fowd != nullptr) {
+       return fowd->_val;
+     }
+     return _val; 
+  }
+  const Matrix& val() const { 
+     if(fowd != nullptr) {
+       return fowd->_val;
+     }
+     return _val; 
+  }
 
   template <typename F> 
-  void set_fun(F&& f) { fun = std::forward<F>(f); }
+  void set_fun(F&& f) { 
+     fun = std::forward<F>(f);
+     if(fowd != nullptr) {
+       fowd->set_fun(f);
+     }
+  }
 
   // Backward for gradient propagation
-  Block* back;
+  Block* fowd = nullptr;
+  Block* back = nullptr;
 
   // -------
-  Block(const std::vector<Block *> &argz, int r, int c, bool fwd=true)
+  Block(const std::vector<Block *> &argz, int r, int c, bool fwd=true, bool bck=true)
       : args(argz), _val(r, c, 1.0), back(nullptr) { 
+
      if(fwd) {
-       back = new Block({}, r, c, false);
+       fowd = new Block(argz, r, c, false, false);
+     } 
+
+     if(bck) {
+       back = new Block({}, r, c, false, false);
        for(Block* arg: args) {
          arg->back->args.push_back(this->back);
        }
@@ -125,7 +146,7 @@ public:
     for (auto *arg : args) {
       arg->CalcVal();
     }
-    fun(&_val);
+    fun(&val());
   }
 
   virtual void CalcGrada() {
@@ -173,12 +194,12 @@ static Block MatMul(Block *a1, Block *a2) {
   });
 
   a1->back->set_fun(
-   [a1, a2, &res](Matrix* out) {
+   [a2, &res](Matrix* out) {
     multiply_matrix(res.back->val(), Transposed(a2->val()), out);
   });
 
   a2->back->set_fun(
-   [a1, a2, &res](Matrix* out) {
+   [a1, &res](Matrix* out) {
     multiply_matrix(Transposed(a1->val()), res.back->val(), out);
   });
 
