@@ -234,7 +234,8 @@ TEST_CASE(matmul_with_grads) {
                                                {15, 18, 21},
                                            }));
 
-  dc.CalcGrad();
+  da.CalcGrada();
+  db.CalcGrada();
   CHECK(assertEqualVectors(db.back->val().value(), {{1, 1, 1}, {2, 2, 2}}));
 
   CHECK(assertEqualVectors(da.back->val().value(), {{12, 21}}));
@@ -501,7 +502,9 @@ TEST_CASE(full_layer_with_loss_with_grads) {
   CHECK(assertEqualVectors(bce.val().value(), {{0.75, 0.739, 0.691}}));
 
   // Calc diff and check the loss values
-  bce.CalcGrad();
+  //bce.CalcGrad();
+  w.CalcGrada();
+  x.CalcGrada();
 
   // TODO: make this work:
   //w.CalcGrada();
@@ -535,6 +538,7 @@ TEST_CASE(full_layer_with_loss_with_grads) {
   // Assure it got smaller!
   CHECK(assertEqualVectors(sb.val().value(), {{0.521, 0.484, 0.468}}));
   CHECK(assertEqualVectors(bce.val().value(), {{0.736, 0.726, 0.691}}));
+
 
   // Update the inputs, and check that it also reduces the loss
   x.ApplyGrad(0.01);

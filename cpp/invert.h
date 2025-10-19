@@ -91,55 +91,24 @@ void multiply_matrix(const T &a, const U &b, Matrix *c) {
   }
 }
 
-struct Block {
+
+struct Bluck {
 
   // Forward uses vector of input args, and pointer to result
 private:
+public:
   Matrix _val;
-  std::vector<Block *> args;
+  std::vector<Bluck *> args;
   std::function<void(Matrix *)> fun = [](Matrix *) {};
 
-public:
-
-  Matrix& val() { 
-     if(fowd != nullptr) {
-       return fowd->_val;
-     }
-     return _val; 
-  }
-  const Matrix& val() const { 
-     if(fowd != nullptr) {
-       return fowd->_val;
-     }
-     return _val; 
-  }
+  Matrix& val() { return _val; }
+  const Matrix& val() const { return _val; }
 
   template <typename F> 
-  void set_fun(F&& f) { 
-     fun = std::forward<F>(f);
-     if(fowd != nullptr) {
-       fowd->set_fun(f);
-     }
-  }
+  void set_fun(F&& f) { fun = std::forward<F>(f); }
 
-  // Backward for gradient propagation
-  Block* fowd = nullptr;
-  Block* back = nullptr;
-
-  // -------
-  Block(const std::vector<Block *> &argz, int r, int c, bool fwd=true, bool bck=true)
-      : args(argz), _val(r, c, 1.0), back(nullptr) { 
-
-     if(fwd) {
-       fowd = new Block(argz, r, c, false, false);
-     } 
-
-     if(bck) {
-       back = new Block({}, r, c, false, false);
-       for(Block* arg: args) {
-         arg->back->args.push_back(this->back);
-       }
-     }
+  Bluck(const std::vector<Bluck *> &argz, int r, int c)
+      : args(argz), _val(r, c, 1.0) { 
   }
 
   void CalcVal() {
@@ -148,16 +117,58 @@ public:
     }
     fun(&val());
   }
+};
+
+
+
+
+struct Block {
+
+  Matrix& val() { 
+     return fowd->_val;
+  }
+  const Matrix& val() const { 
+     return fowd->_val;
+  }
+
+  template <typename F> 
+  void set_fun(F&& f) { 
+     fowd->set_fun(f);
+  }
+
+  // Backward for gradient propagation
+  Bluck* fowd = nullptr;
+  Bluck* back = nullptr;
+
+  // -------
+  Block(const std::vector<Block *> &argz, int r, int c) { 
+
+     fowd = new Bluck({}, r, c);
+     for(Block* arg: argz) {
+       fowd->args.push_back(arg->fowd);
+     }
+
+     back = new Bluck({}, r, c);
+     for(Block* arg: argz) {
+         arg->back->args.push_back(this->back);
+     }
+  }
+
+  void CalcVal() {
+    for (auto *arg : fowd->args) {
+      arg->CalcVal();
+    }
+    fowd->fun(&val());
+  }
 
   virtual void CalcGrada() {
     back->CalcVal();
   }
 
-
   virtual void CalcGrad() {
-    for (auto *arg : args) {
-      arg->back->CalcVal();
-      arg->CalcGrad();
+    for (auto *arg : fowd->args) {
+      //arg->back->CalcVal();
+      //arg->CalcGrad();
     }
   }
 
