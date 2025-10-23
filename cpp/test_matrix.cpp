@@ -196,24 +196,24 @@ bool assertEqualVectors(const std::vector<std::vector<T>> &got,
 }
 
 TEST_CASE(matmul) {
-  Block da = Data(2, 3);
-  da.val().set_data({{1, 2, 3}, {4, 5, 6}});
+  Mod3l m;
 
-  Block db = Data(3, 4);
-  db.val().set_data({{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}});
+  Block* da = Data(&m, 2, 3);
+  da->val().set_data({{1, 2, 3}, {4, 5, 6}});
 
-  // Block dc = MatMul(&da, &db);
-  // Block dc = Blocks::MatMul(&da, &db);
-  Block dc = MatMul(&da, &db);
+  Block* db = Data(&m, 3, 4);
+  db->val().set_data({{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}});
 
-  CHECK(assertEqualVectors(da.val().value(), {
+  Block* dc = MatMul2(da, db);
+
+  CHECK(assertEqualVectors(da->val().value(), {
                                                {1, 2, 3},
                                                {4, 5, 6},
                                            }));
 
-  dc.CalcVal();
+  dc->CalcVal();
 
-  CHECK(assertEqualVectors(dc.val().value(), {
+  CHECK(assertEqualVectors(dc->val().value(), {
                                                {38, 44, 50, 56},
                                                {83, 98, 113, 128},
                                            }));

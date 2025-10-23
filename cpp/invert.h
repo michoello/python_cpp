@@ -17,8 +17,6 @@ std::vector<int> invert(const std::vector<int> &v);
 class Matrix;
 class Funcs;
 
-void sum_matrix(const Matrix &a, const Matrix &y_true, Matrix *c);
-
 struct Matrix {
   int rows;
   int cols;
@@ -113,6 +111,9 @@ struct LazyFunc {
   }
 };
 
+struct Mod3l;
+
+
 struct Block {
 
   Matrix& val() { 
@@ -127,21 +128,21 @@ struct Block {
      fowd->set_fun(f);
   }
 
-  // Backward for gradient propagation
+  Mod3l* model = nullptr;
+
+  // TODO: why are they pointers?
   LazyFunc* fowd = nullptr;
+  // Backward for gradient propagation
   LazyFunc* back = nullptr;
 
   // -------
-  Block(const std::vector<Block *> &argz, int r, int c) { 
-
-     fowd = new LazyFunc({}, r, c);
-     for(Block* arg: argz) {
-       fowd->args.push_back(arg->fowd);
+  Block(const std::vector<Block *> &argz, int r, int c); 
+  ~Block() {
+     if(fowd != nullptr) {
+       delete fowd;
      }
-
-     back = new LazyFunc({}, r, c);
-     for(Block* arg: argz) {
-         arg->back->args.push_back(this->back);
+     if(back != nullptr) {
+        delete back;
      }
   }
 
@@ -159,14 +160,78 @@ struct Block {
         val().at(i, j) -= back->val().at(i, j) * learning_rate;
       }
     }
-    // !!!
   }
 };
+
+struct Mod3l {
+private:
+   std::unordered_map<Block*, bool> blocks;
+public:
+   Mod3l() {
+     std::cerr << "HELLO\n";
+   }
+
+   void add(Block* block) {
+      std::cerr << "INSERT " << block->val().rows << " " << block->val().cols << "\n";
+      blocks.insert({block, false});
+      block->model = this;
+   }
+
+   ~Mod3l() {
+      for (auto& [block, _] : blocks) {
+          std::cerr << "DELETE\n";
+         delete block;
+      }
+   }
+
+};
+
+
+
+
 
 static Block Data(int rows, int cols) {
   Block res({}, rows, cols);
   return res;
 }
+
+static Block* Data(Mod3l* model, int rows, int cols) {
+  Block* res = new Block({}, rows, cols);
+  model->add(res);
+  return res;
+}
+
+static Block* MatMul2(Block *a1, Block *a2) {
+
+  // Transposed view of the matrix with no overhead. For MatMul back gradient
+  // propagation
+  struct Transposed {
+    const Matrix &matrix;
+    int rows;
+    int cols;
+    Transposed(const Matrix &src)
+        : matrix(src), rows(src.cols), cols(src.rows) {}
+    inline const double &at(int r, int c) const { return matrix.at(c, r); }
+  }; 
+
+  Block* res = new Block({a1, a2}, a1->val().rows, a2->val().cols);
+  res->set_fun([a1, a2](Matrix *out) {
+    multiply_matrix(a1->val(), a2->val(), out);
+  });
+
+  a1->back->set_fun(
+   [a2, res](Matrix* out) {
+    multiply_matrix(res->back->val(), Transposed(a2->val()), out);
+  });
+
+  a2->back->set_fun(
+   [a1, res](Matrix* out) {
+    multiply_matrix(Transposed(a1->val()), res->back->val(), out);
+  });
+
+  return res;
+}
+
 
 static Block MatMul(Block *a1, Block *a2) {
 
