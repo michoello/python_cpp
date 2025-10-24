@@ -167,33 +167,22 @@ struct Mod3l {
 private:
    std::unordered_map<Block*, bool> blocks;
 public:
-   Mod3l() {
-     std::cerr << "HELLO\n";
-   }
+   Mod3l() {}
 
    void add(Block* block) {
-      std::cerr << "INSERT " << block->val().rows << " " << block->val().cols << "\n";
+      //std::cerr << "INSERT " << block->val().rows << " " << block->val().cols << "\n";
       blocks.insert({block, false});
       block->model = this;
    }
 
    ~Mod3l() {
       for (auto& [block, _] : blocks) {
-          std::cerr << "DELETE\n";
+         //std::cerr << "DELETE\n";
          delete block;
       }
    }
 
 };
-
-
-
-
-
-static Block Data(int rows, int cols) {
-  Block res({}, rows, cols);
-  return res;
-}
 
 static Block* Data(Mod3l* model, int rows, int cols) {
   Block* res = new Block({}, rows, cols);
@@ -201,7 +190,7 @@ static Block* Data(Mod3l* model, int rows, int cols) {
   return res;
 }
 
-static Block* MatMul2(Block *a1, Block *a2) {
+static Block* MatMul(Block *a1, Block *a2) {
 
   // Transposed view of the matrix with no overhead. For MatMul back gradient
   // propagation
@@ -227,38 +216,6 @@ static Block* MatMul2(Block *a1, Block *a2) {
   a2->back->set_fun(
    [a1, res](Matrix* out) {
     multiply_matrix(Transposed(a1->val()), res->back->val(), out);
-  });
-
-  return res;
-}
-
-
-static Block MatMul(Block *a1, Block *a2) {
-
-  // Transposed view of the matrix with no overhead. For MatMul back gradient
-  // propagation
-  struct Transposed {
-    const Matrix &matrix;
-    int rows;
-    int cols;
-    Transposed(const Matrix &src)
-        : matrix(src), rows(src.cols), cols(src.rows) {}
-    inline const double &at(int r, int c) const { return matrix.at(c, r); }
-  }; 
-
-  Block res({a1, a2}, a1->val().rows, a2->val().cols);
-  res.set_fun([a1, a2, &res](Matrix *out) {
-    multiply_matrix(a1->val(), a2->val(), out);
-  });
-
-  a1->back->set_fun(
-   [a2, &res](Matrix* out) {
-    multiply_matrix(res.back->val(), Transposed(a2->val()), out);
-  });
-
-  a2->back->set_fun(
-   [a1, &res](Matrix* out) {
-    multiply_matrix(Transposed(a1->val()), res.back->val(), out);
   });
 
   return res;
@@ -335,18 +292,18 @@ static Block *ElFun(Block *a, DifFu1 fwd, DifFu1 bwd) {
 
 static Block *Sqrt(Block *a) { return ElFun(a, &Funcs::square, &Funcs::tbd); }
 
-static Block Sigmoid(Block *a) {
-  return *ElFun(a, &Funcs::sigmoid, &Funcs::sigmoid_derivative);
+static Block* Sigmoid(Block *a) {
+  return ElFun(a, &Funcs::sigmoid, &Funcs::sigmoid_derivative);
 }
 
 static Block *MulEl(Block *a, double n) {
   return ElFun(a, Funcs::get_mul_el(n), &Funcs::tbd);
 }
 
-static Block Add(Block *a1, Block *a2) {
-  Block res({a1, a2}, a1->val().rows, a1->val().cols);
+static Block* Add(Block *a1, Block *a2) {
+  auto* res = new Block({a1, a2}, a1->val().rows, a1->val().cols);
 
-  res.set_fun([a1, a2, &res](Matrix* out) { 
+  res->set_fun([a1, a2](Matrix* out) { 
     Funcs::for_each_el(a1->val(), a2->val(), out, [](double a, double b){
       return a + b;
     });
@@ -357,22 +314,21 @@ static Block Add(Block *a1, Block *a2) {
 };
 
 // Difference
-static Block Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
+static Block* Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
 
-static Block Sum(Block *a) {
-  Block res({a}, 1, 1);
+static Block* Sum(Block *a) {
+  auto* res = new Block({a}, 1, 1);
 
-  // !!!
-  res.set_fun([a, &res](Matrix* out) {
+  res->set_fun([a, &res](Matrix* out) {
     double& s = out->at(0, 0);
     s = 0;
     Funcs::for_each_el(a->val(), [&s](double a){ s += a; });
   });
 
   a->back->set_fun(
-   [a, &res](Matrix* out) {
+   [a, res](Matrix* out) {
     // TODO: just fill the "out" with grad value instead of these loops
-    double grad = res.back->val().at(0, 0);
+    double grad = res->back->val().at(0, 0);
     for (int r = 0; r < a->val().rows; ++r) {
       for (int c = 0; c < a->val().cols; ++c) {
         out->at(r, c) = grad;
@@ -383,10 +339,10 @@ static Block Sum(Block *a) {
   return res;
 }
 
-static Block SSE(Block *a1, Block *a2) {
-  Block res({a1, a2}, 1, 1);
+static Block* SSE(Block *a1, Block *a2) {
+  auto * res = new Block({a1, a2}, 1, 1);
 
-  res.set_fun([a1, a2, &res](Matrix* out) {
+  res->set_fun([a1, a2](Matrix* out) {
     float s = 0.0;
     for (int i = 0; i < a1->val().rows; i++) {
       for (int j = 0; j < a1->val().cols; j++) {
@@ -397,7 +353,7 @@ static Block SSE(Block *a1, Block *a2) {
   });
 
   a1->back->set_fun(
-   [a1, a2, &res](Matrix* out) {
+   [a1, a2](Matrix* out) {
     // TODO: create a method that fills in the matrix with func calls.
     for (int i = 0; i < a1->val().rows; i++) {
       for (int j = 0; j < a1->val().cols; j++) {
@@ -414,10 +370,10 @@ static Block SSE(Block *a1, Block *a2) {
 // Binary Cross Enthropy
 // TODO: calc average as a single value. Currently it is consistent with
 // python impl having same flaw
-static Block BCE(Block *a1, Block *a2) {
-  Block res({a1, a2}, a1->val().rows, a1->val().cols);
+static Block* BCE(Block *a1, Block *a2) {
+  auto* res = new Block({a1, a2}, a1->val().rows, a1->val().cols);
 
-  res.set_fun([a1, a2](Matrix* out) {
+  res->set_fun([a1, a2](Matrix* out) {
     Funcs::for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t){ 
       double epsilon = 1e-12; // small value to avoid log(0)
       double p = std::min(std::max(y_p, epsilon), 1.0 - epsilon);
