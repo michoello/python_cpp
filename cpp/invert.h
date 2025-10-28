@@ -3,7 +3,6 @@
  *
  */
 
-
 #include <cassert>
 #include <cmath>
 #include <functional>
@@ -87,21 +86,18 @@ void multiply_matrix(const T &a, const U &b, Matrix *c) {
   }
 }
 
-
 struct LazyFunc {
   Matrix _val;
   std::vector<LazyFunc *> args;
   std::function<void(Matrix *)> fun = [](Matrix *) {};
 
-  Matrix& val() { return _val; }
-  const Matrix& val() const { return _val; }
+  Matrix &val() { return _val; }
+  const Matrix &val() const { return _val; }
 
-  template <typename F> 
-  void set_fun(F&& f) { fun = std::forward<F>(f); }
+  template <typename F> void set_fun(F &&f) { fun = std::forward<F>(f); }
 
   LazyFunc(const std::vector<LazyFunc *> &argz, int r, int c)
-      : args(argz), _val(r, c, 1.0) { 
-  }
+      : args(argz), _val(r, c, 1.0) {}
 
   void calc_fval() {
     for (auto *arg : args) {
@@ -113,57 +109,44 @@ struct LazyFunc {
 
 struct Mod3l;
 
-
 struct Block {
 
   // TODO: delete these two guys?
-  Matrix& val() { 
-     return fowd_fun->_val;
-  }
-  const Matrix& val() const { 
-     return fowd_fun->_val;
-  }
+  Matrix &val() { return fowd_fun->_val; }
+  const Matrix &val() const { return fowd_fun->_val; }
 
   // forward value
-  std::vector<std::vector<double>> fval() const { 
-     return fowd_fun->_val.value();
+  std::vector<std::vector<double>> fval() const {
+    return fowd_fun->_val.value();
   }
 
-  std::vector<std::vector<double>> bval() const { 
-     return bawd_fun->val().value();
-  }
-  
-
-  template <typename F> 
-  void set_fun(F&& f) { 
-     fowd_fun->set_fun(f);
+  std::vector<std::vector<double>> bval() const {
+    return bawd_fun->val().value();
   }
 
-  Mod3l* model = nullptr;
+  template <typename F> void set_fun(F &&f) { fowd_fun->set_fun(f); }
+
+  Mod3l *model = nullptr;
 
   // TODO: why are they pointers?
-  LazyFunc* fowd_fun = nullptr;
+  LazyFunc *fowd_fun = nullptr;
   // Backward for gradient propagation
-  LazyFunc* bawd_fun = nullptr;
+  LazyFunc *bawd_fun = nullptr;
 
   // -------
-  Block(const std::vector<Block *> &argz, int r, int c); 
+  Block(const std::vector<Block *> &argz, int r, int c);
   ~Block() {
-     if(fowd_fun != nullptr) {
-       delete fowd_fun;
-     }
-     if(bawd_fun != nullptr) {
-        delete bawd_fun;
-     }
+    if (fowd_fun != nullptr) {
+      delete fowd_fun;
+    }
+    if (bawd_fun != nullptr) {
+      delete bawd_fun;
+    }
   }
 
-  void calc_fval() {
-    fowd_fun->calc_fval();
-  }
+  void calc_fval() { fowd_fun->calc_fval(); }
 
-  virtual void calc_bval() {
-    bawd_fun->calc_fval();
-  }
+  virtual void calc_bval() { bawd_fun->calc_fval(); }
 
   void apply_bval(float learning_rate) {
     for (int i = 0; i < val().rows; i++) {
@@ -176,36 +159,37 @@ struct Block {
 
 struct Mod3l {
 private:
-   std::unordered_map<Block*, bool> blocks;
+  std::unordered_map<Block *, bool> blocks;
+
 public:
-   Mod3l() {}
+  Mod3l() {}
 
-   void add(Block* block) {
-      blocks.insert({block, false});
-      block->model = this;
-   }
+  void add(Block *block) {
+    blocks.insert({block, false});
+    block->model = this;
+  }
 
-   ~Mod3l() {
-      for (auto& [block, _] : blocks) {
-         delete block;
-      }
-   }
+  ~Mod3l() {
+    for (auto &[block, _] : blocks) {
+      delete block;
+    }
+  }
 
-   void set_data(Block* block, const std::vector<std::vector<double>> &vals) {
-      block->val().set_data(vals);
-   }
+  void set_data(Block *block, const std::vector<std::vector<double>> &vals) {
+    block->val().set_data(vals);
+  }
 };
 
-static Block* Data(Mod3l* model, int rows, int cols) {
-  Block* res = new Block({}, rows, cols);
+static Block *Data(Mod3l *model, int rows, int cols) {
+  Block *res = new Block({}, rows, cols);
   model->add(res);
   return res;
 }
 
-static Block* MatMul(Block *a1, Block *a2) {
+static Block *MatMul(Block *a1, Block *a2) {
 
-  // Transposed view of the matrix with no overhead. For MatMul bawd_fun gradient
-  // propagation
+  // Transposed view of the matrix with no overhead. For MatMul bawd_fun
+  // gradient propagation
   struct Transposed {
     const Matrix &matrix;
     int rows;
@@ -213,20 +197,17 @@ static Block* MatMul(Block *a1, Block *a2) {
     Transposed(const Matrix &src)
         : matrix(src), rows(src.cols), cols(src.rows) {}
     inline const double &at(int r, int c) const { return matrix.at(c, r); }
-  }; 
+  };
 
-  Block* res = new Block({a1, a2}, a1->val().rows, a2->val().cols);
-  res->set_fun([a1, a2](Matrix *out) {
-    multiply_matrix(a1->val(), a2->val(), out);
-  });
+  Block *res = new Block({a1, a2}, a1->val().rows, a2->val().cols);
+  res->set_fun(
+      [a1, a2](Matrix *out) { multiply_matrix(a1->val(), a2->val(), out); });
 
-  a1->bawd_fun->set_fun(
-   [a2, res](Matrix* out) {
+  a1->bawd_fun->set_fun([a2, res](Matrix *out) {
     multiply_matrix(res->bawd_fun->val(), Transposed(a2->val()), out);
   });
 
-  a2->bawd_fun->set_fun(
-   [a1, res](Matrix* out) {
+  a2->bawd_fun->set_fun([a1, res](Matrix *out) {
     multiply_matrix(Transposed(a1->val()), res->bawd_fun->val(), out);
   });
 
@@ -263,20 +244,21 @@ public:
   }
 
   static void for_each_el(const Matrix &in, DifFu0 fu) {
-    for(int i = 0; i < in.data->size(); ++i) {
-       fu( (*in.data)[i] );
+    for (int i = 0; i < in.data->size(); ++i) {
+      fu((*in.data)[i]);
     }
   }
 
   static void for_each_el(const Matrix &in, Matrix *out, DifFu1 fu) {
-    for(int i = 0; i < in.data->size(); ++i) {
-       (*out->data)[i] = fu( (*in.data)[i] );
+    for (int i = 0; i < in.data->size(); ++i) {
+      (*out->data)[i] = fu((*in.data)[i]);
     }
   }
 
-  static void for_each_el(const Matrix &in1, const Matrix& in2, Matrix *out, DifFu2 fu) {
-    for(int i = 0; i < in1.data->size(); ++i) {
-       (*out->data)[i] = fu( (*in1.data)[i], (*in2.data)[i] );
+  static void for_each_el(const Matrix &in1, const Matrix &in2, Matrix *out,
+                          DifFu2 fu) {
+    for (int i = 0; i < in1.data->size(); ++i) {
+      (*out->data)[i] = fu((*in1.data)[i], (*in2.data)[i]);
     }
   }
 };
@@ -284,19 +266,17 @@ public:
 static Block *ElFun(Block *a, DifFu1 fwd, DifFu1 bwd) {
   Block *res = new Block({a}, a->val().rows, a->val().cols);
 
-  res->set_fun( [a, fwd, res](Matrix* out) {
-    Funcs::for_each_el(a->val(), out, fwd);
-  });
+  res->set_fun(
+      [a, fwd, res](Matrix *out) { Funcs::for_each_el(a->val(), out, fwd); });
 
-  a->bawd_fun->set_fun(
-   [a, res, bwd](Matrix* out) {
+  a->bawd_fun->set_fun([a, res, bwd](Matrix *out) {
     // Calc local derivative
     Funcs::for_each_el(a->val(), out, bwd);
-  
-    // Multiply by incoming gradient  
-    Funcs::for_each_el(*out, res->bawd_fun->val(), out, [](double local, double grads){
-        return local * grads;
-    });
+
+    // Multiply by incoming gradient
+    Funcs::for_each_el(
+        *out, res->bawd_fun->val(), out,
+        [](double local, double grads) { return local * grads; });
   });
 
   return res;
@@ -304,7 +284,7 @@ static Block *ElFun(Block *a, DifFu1 fwd, DifFu1 bwd) {
 
 static Block *Sqrt(Block *a) { return ElFun(a, &Funcs::square, &Funcs::tbd); }
 
-static Block* Sigmoid(Block *a) {
+static Block *Sigmoid(Block *a) {
   return ElFun(a, &Funcs::sigmoid, &Funcs::sigmoid_derivative);
 }
 
@@ -312,13 +292,12 @@ static Block *MulEl(Block *a, double n) {
   return ElFun(a, Funcs::get_mul_el(n), &Funcs::tbd);
 }
 
-static Block* Add(Block *a1, Block *a2) {
-  auto* res = new Block({a1, a2}, a1->val().rows, a1->val().cols);
+static Block *Add(Block *a1, Block *a2) {
+  auto *res = new Block({a1, a2}, a1->val().rows, a1->val().cols);
 
-  res->set_fun([a1, a2](Matrix* out) { 
-    Funcs::for_each_el(a1->val(), a2->val(), out, [](double a, double b){
-      return a + b;
-    });
+  res->set_fun([a1, a2](Matrix *out) {
+    Funcs::for_each_el(a1->val(), a2->val(), out,
+                       [](double a, double b) { return a + b; });
   });
   // TODO: backward
 
@@ -326,19 +305,18 @@ static Block* Add(Block *a1, Block *a2) {
 };
 
 // Difference
-static Block* Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
+static Block *Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
 
-static Block* Sum(Block *a) {
-  auto* res = new Block({a}, 1, 1);
+static Block *Sum(Block *a) {
+  auto *res = new Block({a}, 1, 1);
 
-  res->set_fun([a, &res](Matrix* out) {
-    double& s = out->at(0, 0);
+  res->set_fun([a, &res](Matrix *out) {
+    double &s = out->at(0, 0);
     s = 0;
-    Funcs::for_each_el(a->val(), [&s](double a){ s += a; });
+    Funcs::for_each_el(a->val(), [&s](double a) { s += a; });
   });
 
-  a->bawd_fun->set_fun(
-   [a, res](Matrix* out) {
+  a->bawd_fun->set_fun([a, res](Matrix *out) {
     // TODO: just fill the "out" with grad value instead of these loops
     double grad = res->bawd_fun->val().at(0, 0);
     for (int r = 0; r < a->val().rows; ++r) {
@@ -351,10 +329,10 @@ static Block* Sum(Block *a) {
   return res;
 }
 
-static Block* SSE(Block *a1, Block *a2) {
-  auto * res = new Block({a1, a2}, 1, 1);
+static Block *SSE(Block *a1, Block *a2) {
+  auto *res = new Block({a1, a2}, 1, 1);
 
-  res->set_fun([a1, a2](Matrix* out) {
+  res->set_fun([a1, a2](Matrix *out) {
     float s = 0.0;
     for (int i = 0; i < a1->val().rows; i++) {
       for (int j = 0; j < a1->val().cols; j++) {
@@ -364,8 +342,7 @@ static Block* SSE(Block *a1, Block *a2) {
     out->at(0, 0) = s;
   });
 
-  a1->bawd_fun->set_fun(
-   [a1, a2](Matrix* out) {
+  a1->bawd_fun->set_fun([a1, a2](Matrix *out) {
     // TODO: create a method that fills in the matrix with func calls.
     for (int i = 0; i < a1->val().rows; i++) {
       for (int j = 0; j < a1->val().cols; j++) {
@@ -382,22 +359,22 @@ static Block* SSE(Block *a1, Block *a2) {
 // Binary Cross Enthropy
 // TODO: calc average as a single value. Currently it is consistent with
 // python impl having same flaw
-static Block* BCE(Block *a1, Block *a2) {
-  auto* res = new Block({a1, a2}, a1->val().rows, a1->val().cols);
+static Block *BCE(Block *a1, Block *a2) {
+  auto *res = new Block({a1, a2}, a1->val().rows, a1->val().cols);
 
-  res->set_fun([a1, a2](Matrix* out) {
-    Funcs::for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t){ 
+  res->set_fun([a1, a2](Matrix *out) {
+    Funcs::for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t) {
       double epsilon = 1e-12; // small value to avoid log(0)
       double p = std::min(std::max(y_p, epsilon), 1.0 - epsilon);
       return -(y_t * std::log(p) + (1.0 - y_t) * std::log(1.0 - p));
     });
   });
 
-  a1->bawd_fun->set_fun([a1, a2](Matrix* out) {
-    Funcs::for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t){ 
+  a1->bawd_fun->set_fun([a1, a2](Matrix *out) {
+    Funcs::for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t) {
       double epsilon = 1e-12;
       double p = std::min(std::max(y_p, epsilon), 1.0 - epsilon);
-      return  -(y_t / p) + ((1.0 - y_t) / (1.0 - p));
+      return -(y_t / p) + ((1.0 - y_t) / (1.0 - p));
     });
   });
 
