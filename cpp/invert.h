@@ -217,6 +217,7 @@ static Block *MatMul(Block *a1, Block *a2) {
 using DifFu0 = std::function<void(double)>;
 using DifFu1 = std::function<double(double)>;
 using DifFu2 = std::function<double(double, double)>;
+using DifFu20 = std::function<void(double, double)>;
 
 class Funcs {
 public:
@@ -261,6 +262,15 @@ public:
       (*out->data)[i] = fu((*in1.data)[i], (*in2.data)[i]);
     }
   }
+
+  static void for_each_el(const Matrix &in1, const Matrix &in2, 
+                          DifFu20 fu) {
+    for (int i = 0; i < in1.data->size(); ++i) {
+      fu((*in1.data)[i], (*in2.data)[i]);
+    }
+  }
+
+
 };
 
 static Block *ElFun(Block *a, DifFu1 fwd, DifFu1 bwd) {
@@ -310,20 +320,15 @@ static Block *Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
 static Block *Sum(Block *a) {
   auto *res = new Block({a}, 1, 1);
 
-  res->set_fun([a, &res](Matrix *out) {
-    double &s = out->at(0, 0);
-    s = 0;
-    Funcs::for_each_el(a->val(), [&s](double a) { s += a; });
+  res->set_fun([a](Matrix *out) {
+    double s = 0;
+    Funcs::for_each_el(a->val(), [&s](double a){ s += a; });
+    out->at(0, 0) = s;
   });
 
   a->bawd_fun->set_fun([a, res](Matrix *out) {
-    // TODO: just fill the "out" with grad value instead of these loops
     double grad = res->bawd_fun->val().at(0, 0);
-    for (int r = 0; r < a->val().rows; ++r) {
-      for (int c = 0; c < a->val().cols; ++c) {
-        out->at(r, c) = grad;
-      }
-    }
+    Funcs::for_each_el(a->val(), out, [grad](double _){ return grad; });
   });
 
   return res;
@@ -333,25 +338,20 @@ static Block *SSE(Block *a1, Block *a2) {
   auto *res = new Block({a1, a2}, 1, 1);
 
   res->set_fun([a1, a2](Matrix *out) {
-    float s = 0.0;
-    for (int i = 0; i < a1->val().rows; i++) {
-      for (int j = 0; j < a1->val().cols; j++) {
-        s += Funcs::square(a2->val().at(i, j) - a1->val().at(i, j));
-      }
-    }
+    double s = 0;
+    Funcs::for_each_el(a1->val(), a2->val(), [&s](double a, double b){ 
+        s += Funcs::square(b - a);
+    });
     out->at(0, 0) = s;
   });
 
   a1->bawd_fun->set_fun([a1, a2](Matrix *out) {
-    // TODO: create a method that fills in the matrix with func calls.
-    for (int i = 0; i < a1->val().rows; i++) {
-      for (int j = 0; j < a1->val().cols; j++) {
-        out->at(i, j) = 2 * (a1->val().at(i, j) - a2->val().at(i, j));
-      }
-    }
-  });
+    Funcs::for_each_el(a1->val(), a2->val(), out, [](double a, double b){ 
+        return 2 * (a - b);
+    });
 
-  // TODO: a2 backward?
+
+  });
 
   return res;
 }
