@@ -199,10 +199,10 @@ TEST_CASE(matmul) {
   Mod3l m;
 
   Block* da = Data(&m, 2, 3);
-  da->val().set_data({{1, 2, 3}, {4, 5, 6}});
+  m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
 
   Block* db = Data(&m, 3, 4);
-  db->val().set_data({{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}});
+  m.set_data(db, {{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}});
 
   Block* dc = MatMul(da, db);
 
@@ -223,10 +223,10 @@ TEST_CASE(matmul_with_grads) {
   Mod3l m;
 
   Block*  da =  Data(&m, 1, 2);
-  da->val().set_data({{1, 2}});
+  m.set_data(da, {{1, 2}});
 
   Block*  db =  Data(&m, 2, 3);
-  db->val().set_data({{3, 4, 5}, {6, 7, 8}});
+  m.set_data(db, {{3, 4, 5}, {6, 7, 8}});
 
   Block* dc = MatMul(da, db);
 
@@ -251,7 +251,7 @@ TEST_CASE(sqrt_matrix) {
   Block* dc = Sqrt(da);
   Block* dc2 = Sqrt(dc);
 
-  da->val().set_data({{1, 2, 3}, {4, 5, 6}});
+  m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
 
   dc2->CalcVal();
   CHECK(assertEqualVectors(dc2->val().value(), {
@@ -268,13 +268,13 @@ TEST_CASE(sqrt_matrix) {
 
 TEST_CASE(add_matrix) {
   Mod3l m;
-  Block*  da =  Data(&m, 2, 3);
-  Block*  db =  Data(&m, 2, 3);
-  Block*  dc =  Data(&m, 2, 3);
+  Block* da =  Data(&m, 2, 3);
+  Block* db =  Data(&m, 2, 3);
+  Block* dc =  Data(&m, 2, 3);
 
-  da->val().set_data({{1, 2, 3}, {4, 5, 6}});
-  db->val().set_data({{4, 5, 6}, {1, 2, 3}});
-  dc->val().set_data({{1, 1, 1}, {2, 2, 2}});
+  m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
+  m.set_data(db, {{4, 5, 6}, {1, 2, 3}});
+  m.set_data(dc, {{1, 1, 1}, {2, 2, 2}});
 
   Block* ds1 = Add(da, db);
   Block* ds2 = Add(ds1, dc);
@@ -298,8 +298,8 @@ TEST_CASE(dif_matrix) {
   Block*  da =  Data(&m, 2, 3);
   Block*  db =  Data(&m, 2, 3);
 
-  da->val().set_data({{1, 2, 3}, {4, 5, 6}});
-  db->val().set_data({{2, 3, 5}, {8, 13, 21}});
+  m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
+  m.set_data(db, {{2, 3, 5}, {8, 13, 21}});
 
   Block* dd = Dif(db, da); // db - da
 
@@ -314,7 +314,7 @@ TEST_CASE(mul_el) {
   Mod3l m;
   Block*  da =  Data(&m, 2, 3);
 
-  da->val().set_data({{1, 2, 3}, {4, 5, 6}});
+  m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
 
   Block* db = MulEl(da, 2);
   Block* dc = MulEl(db, -1);
@@ -335,7 +335,7 @@ TEST_CASE(mul_el) {
 TEST_CASE(sum_mat) {
   Mod3l m;
   Block*  da =  Data(&m, 2, 3);
-  da->val().set_data({{1, 2, 3}, {4, 5, 6}});
+  m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
 
   Block* ds = Sum(da);
 
@@ -354,10 +354,10 @@ TEST_CASE(sum_mat) {
 TEST_CASE(sse) {
   Mod3l m;
   Block*  da =  Data(&m, 2, 3);
-  da->val().set_data({{1, 2, 3}, {4, 5, 6}});
+  m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
 
   Block*  db =  Data(&m, 2, 3);
-  db->val().set_data({{1, 2, 4}, {4, 5, 4}});
+  m.set_data(db, {{1, 2, 4}, {4, 5, 4}});
 
   Block* ds = SSE(da, db);
 
@@ -372,11 +372,11 @@ TEST_CASE(sse_with_grads) {
   Mod3l m;
   // "output"
   Block*  dy =  Data(&m, 1, 2);
-  dy->val().set_data({{1, 2}}); // true labels
+  m.set_data(dy, {{1, 2}}); // true labels
 
   // "labels"
   Block*  dl =  Data(&m, 1, 2);
-  dl->val().set_data({{0, 4}});
+  m.set_data(dl, {{0, 4}});
 
   Block* ds = SSE(dy, dl);
 
@@ -412,10 +412,10 @@ TEST_CASE(sigmoid_with_grads) {
   Mod3l m;
 
   Block*  x =  Data(&m, 1, 2);
-  x->val().set_data({{0.1, -0.2}});
+  m.set_data(x, {{0.1, -0.2}});
 
   Block*  w =  Data(&m, 2, 3);
-  w->val().set_data({{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
+  m.set_data(w, {{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
 
   Block* mm = MatMul(x, w);
 
@@ -435,10 +435,10 @@ TEST_CASE(sigmoid_with_gradas) {
   Mod3l m;
 
   Block*  x =  Data(&m, 1, 2);
-  x->val().set_data({{0.1, -0.2}});
+  m.set_data(x, {{0.1, -0.2}});
 
   Block*  w =  Data(&m, 2, 3);
-  w->val().set_data({{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
+  m.set_data(w, {{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
 
   Block* mm = MatMul(x, w);
 
@@ -459,9 +459,9 @@ TEST_CASE(sigmoid_with_gradas) {
 TEST_CASE(bce_with_grads) {
   Mod3l m;
   Block*  ypred =  Data(&m, 1, 3);
-  ypred->val().set_data({{0.527, 0.478, 0.468}});
+  m.set_data(ypred, {{0.527, 0.478, 0.468}});
   Block*  ytrue =  Data(&m, 1, 3);
-  ytrue->val().set_data({{0, 1, 0.468}});
+  m.set_data(ytrue, {{0, 1, 0.468}});
 
   Block* bce = BCE(ypred, ytrue);
 
@@ -477,9 +477,9 @@ TEST_CASE(bce_with_grads) {
 TEST_CASE(bce_with_gradas) {
   Mod3l m;
   Block*  ypred =  Data(&m, 1, 3);
-  ypred->val().set_data({{0.527, 0.478, 0.468}});
+  m.set_data(ypred, {{0.527, 0.478, 0.468}});
   Block*  ytrue =  Data(&m, 1, 3);
-  ytrue->val().set_data({{0, 1, 0.468}});
+  m.set_data(ytrue, {{0, 1, 0.468}});
 
   Block* bce = BCE(ypred, ytrue);
 
@@ -494,16 +494,16 @@ TEST_CASE(bce_with_gradas) {
 TEST_CASE(full_layer_with_loss_with_grads) {
   Mod3l m;
   Block*  x =  Data(&m, 1, 2);
-  x->val().set_data({{0.1, -0.2}});
+  m.set_data(x, {{0.1, -0.2}});
 
   Block*  w =  Data(&m, 2, 3);
-  w->val().set_data({{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
+  m.set_data(w, {{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
 
   Block* mm = MatMul(x, w);
   Block* sb = Sigmoid(mm);
 
   Block*  y =  Data(&m, 1, 3);
-  y->val().set_data({{0, 1, 0.468}});
+  m.set_data(y, {{0, 1, 0.468}});
 
   // loss
   Block* bce = BCE(sb, y);

@@ -170,18 +170,19 @@ public:
    Mod3l() {}
 
    void add(Block* block) {
-      //std::cerr << "INSERT " << block->val().rows << " " << block->val().cols << "\n";
       blocks.insert({block, false});
       block->model = this;
    }
 
    ~Mod3l() {
       for (auto& [block, _] : blocks) {
-         //std::cerr << "DELETE\n";
          delete block;
       }
    }
 
+   void set_data(Block* block, const std::vector<std::vector<double>> &vals) {
+      block->val().set_data(vals);
+   }
 };
 
 static Block* Data(Mod3l* model, int rows, int cols) {
