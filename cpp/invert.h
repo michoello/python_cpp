@@ -116,30 +116,41 @@ struct Mod3l;
 
 struct Block {
 
+  // TODO: delete these two guys?
   Matrix& val() { 
-     return fowd->_val;
+     return fowd_fun->_val;
   }
   const Matrix& val() const { 
-     return fowd->_val;
+     return fowd_fun->_val;
   }
+
+  // forward value
+  std::vector<std::vector<double>> fval() const { 
+     return fowd_fun->_val.value();
+  }
+
+  std::vector<std::vector<double>> bval() const { 
+     return back->val().value();
+  }
+  
 
   template <typename F> 
   void set_fun(F&& f) { 
-     fowd->set_fun(f);
+     fowd_fun->set_fun(f);
   }
 
   Mod3l* model = nullptr;
 
   // TODO: why are they pointers?
-  LazyFunc* fowd = nullptr;
+  LazyFunc* fowd_fun = nullptr;
   // Backward for gradient propagation
   LazyFunc* back = nullptr;
 
   // -------
   Block(const std::vector<Block *> &argz, int r, int c); 
   ~Block() {
-     if(fowd != nullptr) {
-       delete fowd;
+     if(fowd_fun != nullptr) {
+       delete fowd_fun;
      }
      if(back != nullptr) {
         delete back;
@@ -147,7 +158,7 @@ struct Block {
   }
 
   void CalcVal() {
-    fowd->CalcVal();
+    fowd_fun->CalcVal();
   }
 
   virtual void CalcGrad() {
