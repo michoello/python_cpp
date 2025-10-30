@@ -3,6 +3,8 @@
  *
  */
 
+#pragma GCC diagnostic ignored "-Wunused-function"
+
 #include <cassert>
 #include <cmath>
 #include <functional>
@@ -28,7 +30,7 @@ struct Matrix {
   Matrix(const Matrix &other) = default;
 
   void set_data(const std::vector<std::vector<double>> &vals) {
-    for (int r = 0; r < vals.size(); ++r) {
+    for (size_t r = 0; r < vals.size(); ++r) {
       if ((int)vals[r].size() != cols)
         throw std::invalid_argument(
             "All rows must have the same number of columns");
@@ -87,8 +89,8 @@ void multiply_matrix(const T &a, const U &b, Matrix *c) {
 }
 
 struct LazyFunc {
-  Matrix _val;
   std::vector<LazyFunc *> args;
+  Matrix _val;
   std::function<void(Matrix *)> fun = [](Matrix *) {};
 
   Matrix &val() { return _val; }
@@ -146,7 +148,7 @@ struct Block {
 
   void calc_fval() { fowd_fun->calc_fval(); }
 
-  virtual void calc_bval() { bawd_fun->calc_fval(); }
+  void calc_bval() { bawd_fun->calc_fval(); }
 
   void apply_bval(float learning_rate) {
     for (int i = 0; i < val().rows; i++) {
@@ -238,34 +240,34 @@ public:
     return s * (1.0 - s);
   }
 
-  static double tbd(double x) { return 0; }
+  static double tbd(double) { return 0; }
 
   static DifFu1 get_mul_el(double n) {
     return [n](double d) { return n * d; };
   }
 
   static void for_each_el(const Matrix &in, DifFu0 fu) {
-    for (int i = 0; i < in.data->size(); ++i) {
+    for (size_t i = 0; i < in.data->size(); ++i) {
       fu((*in.data)[i]);
     }
   }
 
   static void for_each_el(const Matrix &in, Matrix *out, DifFu1 fu) {
-    for (int i = 0; i < in.data->size(); ++i) {
+    for (size_t i = 0; i < in.data->size(); ++i) {
       (*out->data)[i] = fu((*in.data)[i]);
     }
   }
 
   static void for_each_el(const Matrix &in1, const Matrix &in2, Matrix *out,
                           DifFu2 fu) {
-    for (int i = 0; i < in1.data->size(); ++i) {
+    for (size_t i = 0; i < in1.data->size(); ++i) {
       (*out->data)[i] = fu((*in1.data)[i], (*in2.data)[i]);
     }
   }
 
   static void for_each_el(const Matrix &in1, const Matrix &in2, 
                           DifFu20 fu) {
-    for (int i = 0; i < in1.data->size(); ++i) {
+    for (size_t i = 0; i < in1.data->size(); ++i) {
       fu((*in1.data)[i], (*in2.data)[i]);
     }
   }
@@ -328,7 +330,7 @@ static Block *Sum(Block *a) {
 
   a->bawd_fun->set_fun([a, res](Matrix *out) {
     double grad = res->bawd_fun->val().at(0, 0);
-    Funcs::for_each_el(a->val(), out, [grad](double _){ return grad; });
+    Funcs::for_each_el(a->val(), out, [grad](double){ return grad; });
   });
 
   return res;

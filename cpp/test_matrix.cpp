@@ -174,7 +174,7 @@ bool assertEqualVectors(const std::vector<std::vector<T>> &got,
         std::cerr << "Expected:\n";
         for (const auto &row : expected) {
           std::cerr << "  { ";
-          for (int i = 0; i < row.size(); ++i) {
+          for (size_t i = 0; i < row.size(); ++i) {
             std::cerr << row[i] << (i < row.size() - 1 ? ", " : " ");
           }
           std::cerr << "}\n";
@@ -183,7 +183,7 @@ bool assertEqualVectors(const std::vector<std::vector<T>> &got,
         std::cerr << "Got:\n";
         for (const auto &row : got) {
           std::cerr << "  { ";
-          for (int i = 0; i < row.size(); ++i) {
+          for (size_t i = 0; i < row.size(); ++i) {
             std::cerr << row[i] << (i < row.size() - 1 ? ", " : " ");
           }
           std::cerr << "}\n";
