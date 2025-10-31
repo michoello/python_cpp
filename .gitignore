@@ -1,9 +1,7 @@
 *.egg-info/
 __pycache__/
 build/
-*x86_64-linux-gnu.so
 output.log
 delme
 test_matrix
 bench_matrix
-
