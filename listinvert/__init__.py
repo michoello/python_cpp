@@ -1,2 +1,2 @@
-from ._listinvert import invert, Matrix
-__all__ = ["invert", "Matrix"]
+from ._listinvert import invert, Matrix, multiply_matrix
+__all__ = ["invert", "Matrix", "multiply_matrix"]

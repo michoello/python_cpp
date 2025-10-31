@@ -16,8 +16,9 @@ PYBIND11_MODULE(_listinvert, m) {
     py::class_<Matrix>(m, "Matrix")
         //.def(py::init<>())  // empty
         .def(py::init<int,int>(), py::arg("rows"), py::arg("cols"))
-        .def(py::init<const std::vector<std::vector<double>>&>(), py::arg("values"))
-        .def(py::init([](py::kwargs kwargs) {
+        //.def(py::init<const std::vector<std::vector<double>>&>(), py::arg("values"))
+        .def(py::init<const Matrix&>(), py::arg("other"))
+        /*.def(py::init([](py::kwargs kwargs) {
             if (kwargs.contains("values")) {
                 return Matrix(kwargs["values"].cast<std::vector<std::vector<double>>>());
             }
@@ -25,7 +26,7 @@ PYBIND11_MODULE(_listinvert, m) {
             int c = kwargs.contains("cols") ? kwargs["cols"].cast<int>() : 0;
             return Matrix(r, c);
         })
-        )
+        )*/
         .def("set_data", &Matrix::set_data)
         //.def("multiply", &Matrix::multiply)
         .def("fill_uniform", &Matrix::fill_uniform)
@@ -35,7 +36,11 @@ PYBIND11_MODULE(_listinvert, m) {
              py::arg("row"), py::arg("col"),
              "Get/set an element by (row, col)")
         ;
-    
+ 
+
+    m.def("multiply_matrix", &multiply_matrix<Matrix, Matrix>, "Multiplies two matrices and writes result into the third one");
+
+
     // expose function
     m.def("invert", [](const std::vector<int>& input) {
         return std::vector<int>(input.rbegin(), input.rend());
