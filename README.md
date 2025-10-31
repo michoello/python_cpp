@@ -25,7 +25,7 @@ sudo yum install pip
 pip install pybind11
 ```
 
-## Installation
+## Build the cpp-python library (aka build_cppy.sh)
 ```
 python3 -m pip install -e .
 ```
@@ -36,6 +36,18 @@ python3 -m pip install -e .
 # Run Example
 python3 examples/invert_cli.py 1 2 3 4 5
 
-# Tests
+# Tests (aka test_cppy.sh)
 python3 -m unittest discover -s tests
+```
+
+## Benchmarks using multiplications of 100*100 matrices
+```
+# Python (50 multiplications in 8.87 seconds)
+./bench_py.sh
+
+# Cpp (5000 multiplications in 4.95 seconds)
+./bench_cpp.sh
+
+# Cpp + Python (5000 multiplications in 11 seconds)
+./bench_cppy.sh
 ```

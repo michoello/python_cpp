@@ -18,8 +18,9 @@ void benchmark_multiply() {
   A.fill_uniform();
   B.fill_uniform();
 
+  Matrix C(100, 100);
   for (size_t i = 0; i < 5000; ++i) {
-    A = A.multiply(B);
+    multiply_matrix(A, B, &C);
     if (i % 1000 == 0) {
       std::cout << i << "\n";
     }

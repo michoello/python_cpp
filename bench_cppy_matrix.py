@@ -1,6 +1,6 @@
 import random
 import time
-from listinvert import Matrix
+from listinvert import Matrix, multiply_matrix
 
 def benchmark(func):
     """Measure runtime of a function in seconds (float)."""
@@ -17,8 +17,9 @@ def benchmark_multiply():
     A.fill_uniform()
     B.fill_uniform()
 
+    C = Matrix(100, 100)
     for i in range(5000):
-        A = A.multiply(B)
+        multiply_matrix(A, B, C)
         if i % 100 == 0:
             print(i)
 
