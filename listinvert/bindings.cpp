@@ -13,29 +13,17 @@ namespace py = pybind11;
 PYBIND11_MODULE(_listinvert, m) {
     m.doc() = "Matrix with flat vector storage";
 
+    // expose class
     py::class_<Matrix>(m, "Matrix")
-        //.def(py::init<>())  // empty
         .def(py::init<int,int>(), py::arg("rows"), py::arg("cols"))
-        //.def(py::init<const std::vector<std::vector<double>>&>(), py::arg("values"))
         .def(py::init<const Matrix&>(), py::arg("other"))
-        /*.def(py::init([](py::kwargs kwargs) {
-            if (kwargs.contains("values")) {
-                return Matrix(kwargs["values"].cast<std::vector<std::vector<double>>>());
-            }
-            int r = kwargs.contains("rows") ? kwargs["rows"].cast<int>() : 0;
-            int c = kwargs.contains("cols") ? kwargs["cols"].cast<int>() : 0;
-            return Matrix(r, c);
-        })
-        )*/
         .def("set_data", &Matrix::set_data)
-        //.def("multiply", &Matrix::multiply)
         .def("fill_uniform", &Matrix::fill_uniform)
         .def("value", &Matrix::value)
         .def("at", (double& (Matrix::*)(int,int)) &Matrix::at,
              py::return_value_policy::reference_internal,
              py::arg("row"), py::arg("col"),
-             "Get/set an element by (row, col)")
-        ;
+             "Get/set an element by (row, col)");
  
 
     m.def("multiply_matrix", &multiply_matrix<Matrix, Matrix>, "Multiplies two matrices and writes result into the third one");
@@ -45,5 +33,16 @@ PYBIND11_MODULE(_listinvert, m) {
     m.def("invert", [](const std::vector<int>& input) {
         return std::vector<int>(input.rbegin(), input.rend());
     });
-    //m.def("invert", &invert, "Invert a list of integers");
+
+    py::class_<Mod3l>(m, "Mod3l")
+        .def(py::init<>())
+        .def("set_data", &Mod3l::set_data);
+
+    py::class_<Block>(m, "Block")
+        //.def(py::init< const std::vector<Block*>, int, int>())
+        .def("calc_fval", &Block::calc_fval)
+        .def("fval", &Block::fval);
+
+    m.def("Data", &Data, py::return_value_policy::reference_internal, "Block with data (weights or inputs/outputs)");
+    m.def("MatMul", &MatMul, py::return_value_policy::reference_internal, "Matrix multiplication");
 }

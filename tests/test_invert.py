@@ -1,5 +1,5 @@
 import unittest
-from listinvert import invert, Matrix, multiply_matrix
+from listinvert import invert, Matrix, multiply_matrix, Mod3l, Block, Data, MatMul
 
 class TestInvert(unittest.TestCase):
     def test_basic(self):
@@ -72,6 +72,41 @@ class TestMatrixMultiply(unittest.TestCase):
         #A_cpp.at(1, 1) = 3
         #self.assertEqual(A_cpp.at(1, 1), 3)
 
+
+class TestMod3l(unittest.TestCase):
+    # Simplest smoke test for model Data block
+    def test_mod3l_data(self):
+        m = Mod3l()
+        da = Data(m, 2, 3)
+        m.set_data(da, [[1, 2, 3], [4, 5, 6]])
+
+        self.assertEqual(da.fval(), [[1, 2, 3], [4, 5, 6]])
+
+        # TODO: error scenarios, like this:
+        # m.set_data(da, [[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+
+
+    def test_mod3l_matmul(self):
+      m = Mod3l()
+
+      da = Data(m, 2, 3)
+      m.set_data(da, [[1, 2, 3], [4, 5, 6]])
+
+      db = Data(m, 3, 4)
+      m.set_data(db, [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]])
+
+      dc = MatMul(da, db)
+
+      self.assertEqual(da.fval(), [
+                                               [1, 2, 3],
+                                               [4, 5, 6],
+                                           ])
+      dc.calc_fval()
+
+      self.assertEqual(dc.fval(), [
+                                               [38, 44, 50, 56],
+                                               [83, 98, 113, 128],
+                                           ])
 
 
 if __name__ == "__main__":
