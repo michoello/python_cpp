@@ -41,8 +41,12 @@ PYBIND11_MODULE(_listinvert, m) {
     py::class_<Block>(m, "Block")
         //.def(py::init< const std::vector<Block*>, int, int>())
         .def("calc_fval", &Block::calc_fval)
-        .def("fval", &Block::fval);
+        .def("calc_bval", &Block::calc_bval)
+        .def("apply_bval", &Block::apply_bval)
+        .def("fval", &Block::fval)
+        .def("bval", &Block::bval);
 
     m.def("Data", &Data, py::return_value_policy::reference_internal, "Block with data (weights or inputs/outputs)");
     m.def("MatMul", &MatMul, py::return_value_policy::reference_internal, "Matrix multiplication");
+    m.def("SSE", &SSE, py::return_value_policy::reference_internal, "SSE loss func");
 }

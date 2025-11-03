@@ -1,5 +1,6 @@
 import unittest
-from listinvert import invert, Matrix, multiply_matrix, Mod3l, Block, Data, MatMul
+from listinvert import invert, Matrix, multiply_matrix, Mod3l, Block, Data, MatMul, SSE
+
 
 class TestInvert(unittest.TestCase):
     def test_basic(self):
@@ -20,6 +21,7 @@ class TestInvert(unittest.TestCase):
 
 # ----------------------------------------------------------------
 
+
 def python_matmul(A, B):
     """Plain Python matrix multiplication for comparison"""
     rows_A, cols_A = len(A), len(A[0])
@@ -33,18 +35,13 @@ def python_matmul(A, B):
                 result[i][j] += A[i][k] * B[k][j]
     return result
 
+
 class TestMatrixMultiply(unittest.TestCase):
+
     def test_matrix_multiplication(self):
         # Define test matrices
-        A_list = [
-            [1, 2, 3],
-            [4, 5, 6]
-        ]
-        B_list = [
-            [7, 8],
-            [9, 10],
-            [11, 12]
-        ]
+        A_list = [[1, 2, 3], [4, 5, 6]]
+        B_list = [[7, 8], [9, 10], [11, 12]]
 
         # Expected result (Python implementation)
         expected = python_matmul(A_list, B_list)
@@ -69,11 +66,19 @@ class TestMatrixMultiply(unittest.TestCase):
         self.assertEqual(A_cpp.at(1, 1), 5)
 
         # This does not work, but ok for now
-        #A_cpp.at(1, 1) = 3
-        #self.assertEqual(A_cpp.at(1, 1), 3)
+        # A_cpp.at(1, 1) = 3
+        # self.assertEqual(A_cpp.at(1, 1), 3)
 
 
 class TestMod3l(unittest.TestCase):
+    def assertAlmostEqualNested(self, a, b, delta=1e-3):
+        if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+            self.assertEqual(len(a), len(b), "Lengths differ")
+            for x, y in zip(a, b):
+                self.assertAlmostEqualNested(x, y, delta)
+        else:
+            self.assertAlmostEqual(a, b, delta=delta)
+
     # Simplest smoke test for model Data block
     def test_mod3l_data(self):
         m = Mod3l()
@@ -85,28 +90,84 @@ class TestMod3l(unittest.TestCase):
         # TODO: error scenarios, like this:
         # m.set_data(da, [[1, 2, 3], [4, 5, 6], [7, 8, 9]])
 
-
     def test_mod3l_matmul(self):
-      m = Mod3l()
+        m = Mod3l()
 
-      da = Data(m, 2, 3)
-      m.set_data(da, [[1, 2, 3], [4, 5, 6]])
+        da = Data(m, 2, 3)
+        m.set_data(da, [[1, 2, 3], [4, 5, 6]])
 
-      db = Data(m, 3, 4)
-      m.set_data(db, [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]])
+        db = Data(m, 3, 4)
+        m.set_data(db, [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]])
 
-      dc = MatMul(da, db)
+        dc = MatMul(da, db)
 
-      self.assertEqual(da.fval(), [
-                                               [1, 2, 3],
-                                               [4, 5, 6],
-                                           ])
-      dc.calc_fval()
+        self.assertEqual(
+            da.fval(),
+            [
+                [1, 2, 3],
+                [4, 5, 6],
+            ],
+        )
+        dc.calc_fval()
 
-      self.assertEqual(dc.fval(), [
-                                               [38, 44, 50, 56],
-                                               [83, 98, 113, 128],
-                                           ])
+        self.assertEqual(
+            dc.fval(),
+            [
+                [38, 44, 50, 56],
+                [83, 98, 113, 128],
+            ],
+        )
+
+    def test_mod3l_sse_with_grads(self):
+        m = Mod3l()
+
+        dy = Data(m, 1, 2)
+        m.set_data(dy, [[1, 2]])  # true labels
+
+        # "labels"
+        dl = Data(m, 1, 2)
+        m.set_data(dl, [[0, 4]])
+
+        ds = SSE(dy, dl)
+
+        ds.calc_fval()
+
+        self.assertEqual(ds.fval(), [[5]])
+
+        # Calc derivatives
+        dy.calc_bval()
+
+        # Derivative of loss function is its value is 1.0 (aka df/df)
+        self.assertEqual(
+            ds.bval(),
+            [
+                [1],
+            ],
+        )
+        # Derivative of its args
+        self.assertEqual(
+            dy.bval(),
+            [
+                [2, -4],
+            ],
+        )
+
+        dy.apply_bval(0.1)
+        self.assertAlmostEqualNested(
+            dy.fval(),
+            [
+                [0.8, 2.4],
+            ],
+        )
+
+        # Calc loss again
+        ds.calc_fval()
+        self.assertAlmostEqualNested(
+            ds.fval(),
+            [
+                [3.2],
+            ],
+        )
 
 
 if __name__ == "__main__":
