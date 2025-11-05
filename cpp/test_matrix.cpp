@@ -175,7 +175,7 @@ bool assertEqualVectors(const std::vector<std::vector<T>> &got,
         for (const auto &row : expected) {
           std::cerr << "  { ";
           for (size_t i = 0; i < row.size(); ++i) {
-            std::cerr << row[i] << (i < row.size() - 1 ? ", " : " ");
+            std::cerr << std::fixed << std::setprecision(round) << row[i] << (i < row.size() - 1 ? ", " : " ");
           }
           std::cerr << "}\n";
         }
@@ -184,7 +184,7 @@ bool assertEqualVectors(const std::vector<std::vector<T>> &got,
         for (const auto &row : got) {
           std::cerr << "  { ";
           for (size_t i = 0; i < row.size(); ++i) {
-            std::cerr << row[i] << (i < row.size() - 1 ? ", " : " ");
+            std::cerr << std::fixed << std::setprecision(round) << row[i] << (i < row.size() - 1 ? ", " : " ");
           }
           std::cerr << "}\n";
         }
@@ -299,10 +299,12 @@ TEST_CASE(add_matrix) {
   Block *da = Data(&m, 2, 3);
   Block *db = Data(&m, 2, 3);
   Block *dc = Data(&m, 2, 3);
+  Block *dy = Data(&m, 2, 3);
 
   m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
   m.set_data(db, {{4, 5, 6}, {1, 2, 3}});
   m.set_data(dc, {{1, 1, 1}, {2, 2, 2}});
+  m.set_data(dy, {{0.1, 0.3, 0.7}, {0.99, 0.5, 0.001}});
 
   Block *ds1 = Add(da, db);
   Block *ds2 = Add(ds1, dc);
@@ -318,6 +320,33 @@ TEST_CASE(add_matrix) {
                                             {5, 7, 9},
                                             {5, 7, 9},
                                         }));
+
+  // Sigmoid is kind of virtual here
+  Block *dl = BCE(Sigmoid(ds2), dy);
+
+  dl->calc_fval();
+  CHECK(assertEqualVectors(dl->fval(), {
+		{ 5.402, 5.600, 3.000 },
+		{ 0.071, 4.500, 10.989 }
+  }));
+
+  // Calc derivatives
+  da->calc_bval();
+  db->calc_bval();
+  dc->calc_bval();
+
+  CHECK(assertEqualVectors(da->bval(), {
+		{ 0.898, 0.700, 0.300 },
+		{ 0.009, 0.500, 0.999 }
+                                       }));
+  CHECK(assertEqualVectors(db->bval(), {
+		{ 0.898, 0.700, 0.300 },
+		{ 0.009, 0.500, 0.999 }
+                                       }));
+  CHECK(assertEqualVectors(dc->bval(), {
+		{ 0.898, 0.700, 0.300 },
+		{ 0.009, 0.500, 0.999 }
+                                       }));
 }
 
 TEST_CASE(dif_matrix) {

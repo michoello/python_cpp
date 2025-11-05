@@ -1,5 +1,5 @@
 import unittest
-from listinvert import invert, Matrix, multiply_matrix, Mod3l, Block, Data, MatMul, SSE
+from listinvert import invert, Matrix, multiply_matrix, Mod3l, Block, Data, MatMul, SSE, Add, BCE, Sigmoid, Reshape
 
 
 class TestInvert(unittest.TestCase):
@@ -168,6 +168,110 @@ class TestMod3l(unittest.TestCase):
                 [3.2],
             ],
         )
+
+    def test_mod3l_add(self):
+        m = Mod3l()
+
+        dy = Data(m, 1, 2)
+        m.set_data(dy, [[1, 2]])
+
+        dl = Data(m, 1, 2)
+        m.set_data(dl, [[0, 4]])
+
+        ds = Add(dy, dl)
+
+        ds.calc_fval()
+        self.assertEqual(ds.fval(), [[1, 6]])
+
+    def test_mod3l_reshape(self):
+        m = Mod3l()
+
+        dy = Data(m, 3, 4)
+        m.set_data(dy, [
+           [1, 2, 3, 4],
+           [5, 2, 3, 4],
+           [8, 2, 3, 4],
+        ])
+
+        dr = Reshape(dy, 4, 3)
+
+        dr.calc_fval()
+        self.assertEqual(dr.fval(), 
+            [[1, 2, 3], [4, 5, 2], [3, 4, 8], [2, 3, 4]])
+
+    def test_mod3l_sigmoid(self):
+        m = Mod3l()
+
+        dy = Data(m, 3, 4)
+        m.set_data(dy, [
+           [1, 2, 3, 4],
+           [5, 2, 3, 4],
+           [8, 2, 3, 4],
+        ])
+
+        dr = Reshape(dy, 4, 3)
+
+        dr.calc_fval()
+        self.assertEqual(dr.fval(), 
+            [[1, 2, 3], [4, 5, 2], [3, 4, 8], [2, 3, 4]])
+
+    # Clone of tictactoe test_hello/test_bce_loss
+    def test_mod3l_bce_loss(self):
+        m = Mod3l()
+        x = Data(m, 1, 2)
+        m.set_data(x, [[0.1, -0.2]])
+
+        w = Data(m, 2, 3)
+        m.set_data(w, [[-0.1, 0.5, 0.3], [-0.6, 0.7, 0.8]])
+
+        #y = (x @ w).sigmoid()
+        y = Sigmoid(MatMul(x, w))
+
+        y.calc_fval()
+
+        self.assertAlmostEqualNested(y.fval(), [[0.527, 0.478, 0.468]])
+
+        l = Data(m, 1, 3)
+        m.set_data(l, [[0, 1, 0.468]])
+
+        #loss = y.bce(ml.BB([[0, 1, 0.468]]))
+        loss = BCE(y, l)
+        loss.calc_fval()
+
+        self.assertAlmostEqualNested(loss.fval(), [[0.75, 0.739, 0.691]])
+
+        # Not let's check the grad starting from the `loss`, the real one
+        w.calc_bval()
+
+        # let's calc grads for inputs as well
+        x.calc_bval()
+
+        self.assertAlmostEqualNested(w.bval(), [
+             [0.0527, -0.052, -4.543/100000],
+             [-0.105, 0.104, 9.086/100000]
+        ], 3)
+
+        w.apply_bval(1.0)
+        self.assertAlmostEqualNested(w.fval(), [
+            [-0.153, 0.552, 0.3],
+            [-0.495, 0.596, 0.8]
+        ])
+
+        # Check that loss decreased
+        loss.calc_fval()
+        self.assertAlmostEqualNested(loss.fval(), [[0.736, 0.726, 0.691]])
+
+        # Check that outputs are getting a bit closer
+        # Note: no need to call 'y.calc_fval()' as it is already calculated by loss
+        self.assertAlmostEqualNested(y.fval(), [[0.521, 0.484, 0.468]])
+
+        x.apply_bval(0.01)
+        self.assertAlmostEqualNested(x.fval(), [[0.103, -0.193]])
+
+        # Check that updating x also reduces the loss
+        loss.calc_fval()
+        self.assertAlmostEqualNested(loss.fval(), [[0.734, 0.723, 0.691]])
+
 
 
 if __name__ == "__main__":

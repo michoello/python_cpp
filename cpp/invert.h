@@ -332,7 +332,14 @@ static Block *Add(Block *a1, Block *a2) {
     Funcs::for_each_el(a1->val(), a2->val(), out,
                        [](double a, double b) { return a + b; });
   });
-  // TODO: backward
+
+  a1->bawd_fun->set_fun([res](Matrix *out) {
+    Funcs::for_each_el(res->bawd_fun->val(), out, [](double g){ return g; });
+  });
+
+  a2->bawd_fun->set_fun([res](Matrix *out) {
+    Funcs::for_each_el(res->bawd_fun->val(), out, [](double g){ return g; });
+  });
 
   return res;
 };
