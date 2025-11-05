@@ -275,6 +275,27 @@ public:
 
 };
 
+
+static Block *Reshape(Block* a, int rows, int cols) {
+  Block *res = new Block({a}, rows, cols);
+  res->set_fun([a](Matrix *out) { 
+     Funcs::for_each_el(a->val(), out,
+		    [](double a) { return a; }
+     );
+  });
+
+  //a->bawd_fun->set_fun([res](Matrix *out) {
+  a->bawd_fun->set_fun([res](Matrix *) {
+  /*  
+    multiply_matrix(res->bawd_fun->val(), Transposed(a2->val()), out);
+*/
+  });
+  return res;
+}
+
+
+
+
 static Block *ElFun(Block *a, DifFu1 fwd, DifFu1 bwd) {
   Block *res = new Block({a}, a->val().rows, a->val().cols);
 

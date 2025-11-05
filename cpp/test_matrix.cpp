@@ -219,6 +219,34 @@ TEST_CASE(matmul) {
                                        }));
 }
 
+TEST_CASE(reshape) {
+  Mod3l m;
+
+  Block *db = Data(&m, 3, 4);
+  m.set_data(db, {{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}});
+
+  Block *dc = Reshape(db, 6, 2);
+
+  CHECK(assertEqualVectors(db->fval(), {
+		{1, 2, 3, 4}, 
+    {5, 6, 7, 8}, 
+    {9, 10, 11, 12}
+  }));
+
+  dc->calc_fval();
+ 
+  CHECK(assertEqualVectors(dc->fval(), {
+  	{ 1, 2 },
+	  { 3, 4 },
+	  { 5, 6 },
+	  { 7, 8 },
+	  { 9, 10 },
+	  {   11, 12 }
+	}));
+}
+
+
+
 TEST_CASE(matmul_with_grads) {
   Mod3l m;
 
