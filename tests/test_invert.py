@@ -71,11 +71,11 @@ class TestMatrixMultiply(unittest.TestCase):
 
 
 class TestMod3l(unittest.TestCase):
-    def assertAlmostEqualNested(self, a, b, delta=1e-3):
+    def assertNearlyEqual(self, a, b, delta=1e-3):
         if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
             self.assertEqual(len(a), len(b), "Lengths differ")
             for x, y in zip(a, b):
-                self.assertAlmostEqualNested(x, y, delta)
+                self.assertNearlyEqual(x, y, delta)
         else:
             self.assertAlmostEqual(a, b, delta=delta)
 
@@ -153,7 +153,7 @@ class TestMod3l(unittest.TestCase):
         )
 
         dy.apply_bval(0.1)
-        self.assertAlmostEqualNested(
+        self.assertNearlyEqual(
             dy.fval(),
             [
                 [0.8, 2.4],
@@ -162,7 +162,7 @@ class TestMod3l(unittest.TestCase):
 
         # Calc loss again
         ds.calc_fval()
-        self.assertAlmostEqualNested(
+        self.assertNearlyEqual(
             ds.fval(),
             [
                 [3.2],
@@ -182,6 +182,65 @@ class TestMod3l(unittest.TestCase):
 
         ds.calc_fval()
         self.assertEqual(ds.fval(), [[1, 6]])
+
+    def test_mod3l_add_fwd_bwd(self):
+        m = Mod3l()
+        da = Data(m, 2, 3)
+        db = Data(m, 2, 3)
+        dc = Data(m, 2, 3)
+        dy = Data(m, 2, 3)
+
+        m.set_data(da, [[1, 2, 3], [4, 5, 6]])
+        m.set_data(db, [[4, 5, 6], [1, 2, 3]])
+        m.set_data(dc, [[1, 1, 1], [2, 2, 2]])
+        m.set_data(dy, [[0.1, 0.3, 0.7], [0.99, 0.5, 0.001]])
+
+        ds2 = Add(Add(da, db), dc)
+
+        ds2.calc_fval()
+        self.assertEqual(ds2.fval(), [
+                                       [6, 8, 10],
+                                       [7, 9, 11],
+                                    ])
+
+        dsig = Sigmoid(ds2)
+        dl = BCE(dsig, dy)
+
+        dl.calc_fval()
+        self.assertNearlyEqual(dl.fval(), [
+            [ 5.402, 5.600, 3.000 ],
+            [ 0.071, 4.500, 10.989 ]
+        ])
+
+        # Calc derivatives
+        da.calc_bval()
+
+        self.assertNearlyEqual(dsig.bval(), [
+            [ 363.886, 2087.070, 6607.540 ],
+            [ 9.985, 4051.542, 59815.266 ],
+                                    ])
+
+        # From Sum and backwards it all goes the same:
+        self.assertNearlyEqual(ds2.bval(), [
+            [ 0.898, 0.700, 0.300 ],
+            [ 0.009, 0.500, 0.999 ]
+                                    ])
+
+
+        self.assertEqual(da.bval(), ds2.bval())
+
+        # Db is not yet calculated
+        self.assertEqual(db.bval(), [
+            [ 1, 1, 1],
+            [ 1, 1, 1],
+                                    ])
+        db.calc_bval()
+        dc.calc_bval()
+        # Now it is calculated
+        self.assertEqual(db.bval(), ds2.bval())
+        self.assertEqual(dc.bval(), ds2.bval())
+
+
 
     def test_mod3l_reshape(self):
         m = Mod3l()
@@ -229,7 +288,7 @@ class TestMod3l(unittest.TestCase):
 
         y.calc_fval()
 
-        self.assertAlmostEqualNested(y.fval(), [[0.527, 0.478, 0.468]])
+        self.assertNearlyEqual(y.fval(), [[0.527, 0.478, 0.468]])
 
         l = Data(m, 1, 3)
         m.set_data(l, [[0, 1, 0.468]])
@@ -238,7 +297,7 @@ class TestMod3l(unittest.TestCase):
         loss = BCE(y, l)
         loss.calc_fval()
 
-        self.assertAlmostEqualNested(loss.fval(), [[0.75, 0.739, 0.691]])
+        self.assertNearlyEqual(loss.fval(), [[0.75, 0.739, 0.691]])
 
         # Not let's check the grad starting from the `loss`, the real one
         w.calc_bval()
@@ -246,31 +305,31 @@ class TestMod3l(unittest.TestCase):
         # let's calc grads for inputs as well
         x.calc_bval()
 
-        self.assertAlmostEqualNested(w.bval(), [
+        self.assertNearlyEqual(w.bval(), [
              [0.0527, -0.052, -4.543/100000],
              [-0.105, 0.104, 9.086/100000]
         ], 3)
 
         w.apply_bval(1.0)
-        self.assertAlmostEqualNested(w.fval(), [
+        self.assertNearlyEqual(w.fval(), [
             [-0.153, 0.552, 0.3],
             [-0.495, 0.596, 0.8]
         ])
 
         # Check that loss decreased
         loss.calc_fval()
-        self.assertAlmostEqualNested(loss.fval(), [[0.736, 0.726, 0.691]])
+        self.assertNearlyEqual(loss.fval(), [[0.736, 0.726, 0.691]])
 
         # Check that outputs are getting a bit closer
         # Note: no need to call 'y.calc_fval()' as it is already calculated by loss
-        self.assertAlmostEqualNested(y.fval(), [[0.521, 0.484, 0.468]])
+        self.assertNearlyEqual(y.fval(), [[0.521, 0.484, 0.468]])
 
         x.apply_bval(0.01)
-        self.assertAlmostEqualNested(x.fval(), [[0.103, -0.193]])
+        self.assertNearlyEqual(x.fval(), [[0.103, -0.193]])
 
         # Check that updating x also reduces the loss
         loss.calc_fval()
-        self.assertAlmostEqualNested(loss.fval(), [[0.734, 0.723, 0.691]])
+        self.assertNearlyEqual(loss.fval(), [[0.734, 0.723, 0.691]])
 
 
 

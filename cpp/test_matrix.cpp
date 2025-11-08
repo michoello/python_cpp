@@ -306,8 +306,7 @@ TEST_CASE(add_matrix) {
   m.set_data(dc, {{1, 1, 1}, {2, 2, 2}});
   m.set_data(dy, {{0.1, 0.3, 0.7}, {0.99, 0.5, 0.001}});
 
-  Block *ds1 = Add(da, db);
-  Block *ds2 = Add(ds1, dc);
+  Block *ds2 = Add(Add(da, db), dc);
 
   ds2->calc_fval();
   CHECK(assertEqualVectors(ds2->fval(), {
@@ -315,14 +314,8 @@ TEST_CASE(add_matrix) {
                                             {7, 9, 11},
                                         }));
 
-  // ds1 is also calculated
-  CHECK(assertEqualVectors(ds1->fval(), {
-                                            {5, 7, 9},
-                                            {5, 7, 9},
-                                        }));
-
-  // Sigmoid is kind of virtual here
-  Block *dl = BCE(Sigmoid(ds2), dy);
+  Block* dsig = Sigmoid(ds2);
+  Block *dl = BCE(dsig, dy);
 
   dl->calc_fval();
   CHECK(assertEqualVectors(dl->fval(), {
@@ -332,21 +325,31 @@ TEST_CASE(add_matrix) {
 
   // Calc derivatives
   da->calc_bval();
+
+  CHECK(assertEqualVectors(dsig->bval(), {
+		{ 363.886, 2087.070, 6607.540 },
+		{ 9.985, 4051.542, 59815.266 },
+                                       }));
+
+  // From Sum and backwards it all goes the same:
+  CHECK(assertEqualVectors(ds2->bval(), {
+		{ 0.898, 0.700, 0.300 },
+		{ 0.009, 0.500, 0.999 }
+                                       }));
+
+
+  CHECK(assertEqualVectors(da->bval(), ds2->bval()));
+
+  // Db is not yet calculated
+  CHECK(assertEqualVectors(db->bval(), {
+		{ 1, 1, 1},
+		{ 1, 1, 1},
+                                       }));
   db->calc_bval();
   dc->calc_bval();
-
-  CHECK(assertEqualVectors(da->bval(), {
-		{ 0.898, 0.700, 0.300 },
-		{ 0.009, 0.500, 0.999 }
-                                       }));
-  CHECK(assertEqualVectors(db->bval(), {
-		{ 0.898, 0.700, 0.300 },
-		{ 0.009, 0.500, 0.999 }
-                                       }));
-  CHECK(assertEqualVectors(dc->bval(), {
-		{ 0.898, 0.700, 0.300 },
-		{ 0.009, 0.500, 0.999 }
-                                       }));
+  // Now it is calculated
+  CHECK(assertEqualVectors(db->bval(), ds2->bval()));
+  CHECK(assertEqualVectors(dc->bval(), ds2->bval()));
 }
 
 TEST_CASE(dif_matrix) {
