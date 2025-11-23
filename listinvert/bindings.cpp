@@ -19,14 +19,14 @@ PYBIND11_MODULE(_listinvert, m) {
         .def(py::init<const Matrix&>(), py::arg("other"))
         .def("set_data", &Matrix::set_data)
         .def("fill_uniform", &Matrix::fill_uniform)
-        .def("value", &Matrix::value)
         .def("at", (double& (Matrix::*)(int,int)) &Matrix::at,
              py::return_value_policy::reference_internal,
              py::arg("row"), py::arg("col"),
              "Get/set an element by (row, col)");
  
 
-    m.def("multiply_matrix", &multiply_matrix<Matrix, Matrix>, "Multiplies two matrices and writes result into the third one");
+    m.def("value", &value<Matrix>, "Returns matrix value as vector of vectors");
+    m.def("multiply_matrix", &multiply_matrix<Matrix, Matrix, Matrix>, "Multiplies two matrices and writes result into the third one");
 
 
     // expose function
