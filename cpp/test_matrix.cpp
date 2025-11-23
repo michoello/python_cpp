@@ -141,9 +141,9 @@ template <typename T> bool approxEqual(T a, T b, double tol = 1e-3) {
   }
 }
 
-template <typename T>
-bool assertEqualVectors(const std::vector<std::vector<T>> &got,
-                        const std::vector<std::vector<T>> &expected,
+//template <typename T>
+bool assertEqualVectors(const std::vector<std::vector<double>> &got,
+                        const std::vector<std::vector<double>> &expected,
                         int round = 3) {
   float tol = std::pow(10.0f, -round);
 
@@ -319,7 +319,7 @@ TEST_CASE(add_matrix) {
 
   dl->calc_fval();
   CHECK(assertEqualVectors(dl->fval(), {
-		{ 5.402, 5.600, 3.000 },
+		{ 5.402, 5.600, 3 },
 		{ 0.071, 4.500, 10.989 }
   }));
 
@@ -608,5 +608,132 @@ TEST_CASE(full_layer_with_loss_with_grads) {
   bce->calc_fval();
   CHECK(assertEqualVectors(bce->fval(), {{0.734, 0.723, 0.691}}));
 }
+
+TEST_CASE(convolution) {
+  CHECK(assertEqualVectors(
+     {{0.734, 0.723, 0.691}},
+     {{0.734, 0.723, 0.691}}
+  ));
+
+  Mod3l m;
+
+  Block *db = Data(&m, 3, 4);
+  m.set_data(db, {{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}});
+
+  Block *da = Data(&m, 2, 3);
+  m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
+
+  Block *dc = MatMul(da, db);
+
+  CHECK(assertEqualVectors(da->fval(), {
+                                           {1, 2, 3},
+                                           {4, 5, 6},
+                                       }));
+
+  dc->calc_fval();
+
+  CHECK(assertEqualVectors(dc->fval(), {
+                                           {38, 44, 50, 56},
+                                           {83, 98, 113, 128},
+                                       }));
+
+
+}
+
+
+TEST_CASE(matrix_views) {
+  Matrix A(2, 3);
+  A.set_data({{1, 2, 3}, {3, 4, 5}});
+
+  // Transposed view
+  TransposedView t(A);
+
+  CHECK(assertEqualVectors(value(t),{
+    {1, 3},
+    {2, 4},
+    {3, 5}
+  }));
+
+  TransposedView tb(t);
+  CHECK(assertEqualVectors(value(tb), value(A)));
+
+  // Reshaped view
+  ReshapedView rv(A, 1, 6);
+  CHECK(assertEqualVectors(value(rv),{ {1,2,3,3,4,5} }));
+
+  ReshapedView rv2(rv, 6, 1);
+  CHECK(assertEqualVectors(value(rv2),{ {1},{2},{3},{3},{4},{5} }));
+
+  ReshapedView rv3(t, 2, 3);
+  CHECK(assertEqualVectors(value(rv3),{ {1, 3, 2},{4, 3, 5} }));
+
+
+  // Sliding window view
+  Matrix b(3, 4);
+  b.set_data({
+     {1,  2,  3,  4},
+     {5,  6,  7,  8}, 
+     {9, 10, 11, 12}
+  });
+
+  SlidingWindowView swv(b, 3, 3);
+  // Each row represents the content of
+  // sliding window 3*3 rolling over b
+  // circular
+  CHECK(assertEqualVectors(value(swv),{ 
+    { 1, 2, 3,   5, 6, 7,  9, 10, 11 },
+    { 2, 3, 4,   6, 7, 8,  10, 11,12 },
+    { 3, 4, 1,   7, 8, 5,  11, 12, 9 },
+    { 4, 1, 2,   8, 5, 6,  12, 9, 10 },
+    { 5, 6, 7,   9, 10,11,  1, 2, 3 },
+    { 6, 7, 8,   10,11,12,  2, 3, 4 },
+    { 7, 8, 5,   11, 12,9,  3, 4, 1 },
+    { 8, 5, 6,   12, 9,10,  4, 1, 2 },
+    { 9, 10, 11,  1, 2, 3,  5, 6, 7 },
+    { 10, 11,12,  2, 3, 4,  6, 7, 8 },
+    { 11, 12, 9,  3, 4, 1,  7, 8, 5 },
+    { 12, 9, 10,  4, 1, 2,  8, 5, 6 },
+  }));
+
+  // Convolution op using ReshapeView and SlidingWindowView
+  Matrix input(3, 4);
+  input.set_data({
+     {1, 2,  3,  4},
+     {1, 0, -1,  0}, 
+     {0, 2,  0, -2}
+  });
+
+  Matrix kernel(2,2);
+  kernel.set_data({
+     { 1, 0 },
+     { 0, 1 },
+  });
+
+
+  ReshapedView kernel_flat(kernel, 4, 1);
+  SlidingWindowView input_view(input, 2, 2);
+
+  Matrix result(3, 4);
+  ReshapedView result_flat(result, 12, 1);
+  
+  ::multiply_matrix(input_view, kernel_flat, &result_flat);
+
+  // Result of convolution: each element is a sum of diagonal elements of input
+  CHECK(assertEqualVectors(value(result), { 
+    { 1, 1, 3, 5  },
+    { 3, 0, -3, 0 },
+    { 2, 5, 4, -1 }
+  }));
+
+  assert(result.at(0, 0) == input.at(0, 0) + input.at(1, 1)); // 1  = 1 + 0
+  assert(result.at(1, 2) == input.at(1, 2) + input.at(2, 3)); // -3 = -1 + -2
+  assert(result.at(2, 1) == input.at(2, 1) + input.at(0, 2)); // 5 = 2 + 3
+  
+
+
+}
+
+
+
 
 int main(int argc, char **argv) { return run_tests(argc, argv); }

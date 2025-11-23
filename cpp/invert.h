@@ -54,23 +54,25 @@ struct Matrix {
   }
 
   inline double &at(int r, int c) { return (*data)[r * cols + c]; }
-
   inline const double &at(int r, int c) const { return (*data)[r * cols + c]; }
 
   // Convert bawd_fun to nested vector (Python list-of-lists)
-  std::vector<std::vector<double>> value() const {
-    std::vector<std::vector<double>> out(rows, std::vector<double>(cols));
-    for (int i = 0; i < rows; i++) {
-      for (int j = 0; j < cols; j++) {
-        out[i][j] = at(i, j);
+};
+
+// Extracts the full value of Matrix-like object(i.e. Matrix or matrix view)
+template <class M>
+std::vector<std::vector<double>> value(const M& m) {
+    std::vector<std::vector<double>> out(m.rows, std::vector<double>(m.cols));
+    for (int i = 0; i < m.rows; i++) {
+      for (int j = 0; j < m.cols; j++) {
+        out[i][j] = m.at(i, j);
       }
     }
     return out;
-  }
-};
+}
 
-template <class T, class U>
-void multiply_matrix(const T &a, const U &b, Matrix *c) {
+template <class T, class U, class V>
+void multiply_matrix(const T &a, const U &b, V *c) {
   // TODO: remove it out of here?
   if (a.cols != b.rows || a.rows != c->rows || b.cols != c->cols) {
     throw std::invalid_argument(
@@ -119,11 +121,12 @@ struct Block {
 
   // forward value
   std::vector<std::vector<double>> fval() const {
-    return fowd_fun->_val.value();
+    //return fowd_fun->_val.value2();
+    return value(fowd_fun->_val); //.value2();
   }
 
   std::vector<std::vector<double>> bval() const {
-    return bawd_fun->val().value();
+    return value(bawd_fun->val()); //.value2();
   }
 
   template <typename F> void set_fun(F &&f) { fowd_fun->set_fun(f); }
@@ -188,33 +191,94 @@ static Block *Data(Mod3l *model, int rows, int cols) {
   return res;
 }
 
-static Block *MatMul(Block *a1, Block *a2) {
 
-  // Transposed view of the matrix with no overhead. For MatMul bawd_fun
-  // gradient propagation
-  struct Transposed {
-    const Matrix &matrix;
+// TransposedView view of the matrix with no overhead. For MatMul bawd_fun
+// gradient propagation
+template <class M>
+struct TransposedView {
+    const M& src;
     int rows;
     int cols;
-    Transposed(const Matrix &src)
-        : matrix(src), rows(src.cols), cols(src.rows) {}
-    inline const double &at(int r, int c) const { return matrix.at(c, r); }
-  };
+    TransposedView(const M& src)
+        : src(src), rows(src.cols), cols(src.rows) {}
+    inline const double &at(int r, int c) const { return src.at(c, r); }
+};
+
+// This is requried to build view of a view
+template<class M>
+TransposedView(const TransposedView<M>&) -> TransposedView<TransposedView<M>>;
+
+static Block *MatMul(Block *a1, Block *a2) {
 
   Block *res = new Block({a1, a2}, a1->val().rows, a2->val().cols);
   res->set_fun(
       [a1, a2](Matrix *out) { multiply_matrix(a1->val(), a2->val(), out); });
 
   a1->bawd_fun->set_fun([a2, res](Matrix *out) {
-    multiply_matrix(res->bawd_fun->val(), Transposed(a2->val()), out);
+    multiply_matrix(res->bawd_fun->val(), TransposedView(a2->val()), out);
   });
 
   a2->bawd_fun->set_fun([a1, res](Matrix *out) {
-    multiply_matrix(Transposed(a1->val()), res->bawd_fun->val(), out);
+    multiply_matrix(TransposedView(a1->val()), res->bawd_fun->val(), out);
   });
 
   return res;
 }
+
+// TransposedView view of the matrix with no overhead. For MatMul bawd_fun
+// gradient propagation
+template <class M>
+struct ReshapedView {
+    M* src;
+    int rows;
+    int cols;
+    ReshapedView(M& src, size_t rows, size_t cols)
+        : src(&src), rows(rows), cols(cols) { /* TODO: check rows*cols=rows*cols */ }
+    inline const double &at(int r, int c) const { 
+        size_t idx = r * cols + c;
+        size_t src_r = idx / src->cols;
+        size_t src_c = idx % src->cols;
+        return src->at(src_r, src_c);
+    }
+
+    inline double &at(int r, int c) { 
+        size_t idx = r * cols + c;
+        size_t src_r = idx / src->cols;
+        size_t src_c = idx % src->cols;
+        return src->at(src_r, src_c);
+    }
+
+
+};
+
+// This is requried to build view of a view
+template<class M>
+ReshapedView(const ReshapedView<M>&) -> ReshapedView<ReshapedView<M>>;
+
+template <class M>
+struct SlidingWindowView {
+    const M& src;
+    int rows;
+    int cols;
+    size_t window_rows;
+    size_t window_cols;
+    SlidingWindowView(const M& src, size_t window_rows, size_t window_cols)
+        : src(src), window_rows(window_rows), window_cols(window_cols) { 
+       rows = src.rows * src.cols;
+       cols = window_rows * window_cols;
+    }
+    inline const double &at(int r, int c) const { 
+        size_t base_row = r / src.cols;
+        size_t base_col = r % src.cols;
+        size_t delta_row = c / window_cols;
+        size_t delta_col = c % window_cols;
+        size_t row = base_row + delta_row;
+        size_t col = base_col + delta_col;
+        row = row % src.rows;
+        col = col % src.cols;
+        return src.at(row, col);
+    }
+};
 
 using DifFu0 = std::function<void(double)>;
 using DifFu1 = std::function<double(double)>;
@@ -284,11 +348,8 @@ static Block *Reshape(Block* a, int rows, int cols) {
      );
   });
 
-  //a->bawd_fun->set_fun([res](Matrix *out) {
   a->bawd_fun->set_fun([res](Matrix *) {
-  /*  
-    multiply_matrix(res->bawd_fun->val(), Transposed(a2->val()), out);
-*/
+     // TODO
   });
   return res;
 }
