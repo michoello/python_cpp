@@ -208,18 +208,32 @@ struct TransposedView {
 template<class M>
 TransposedView(const TransposedView<M>&) -> TransposedView<TransposedView<M>>;
 
-static Block *MatMul(Block *a1, Block *a2) {
+static Block *MatMul(Block *inputs, Block *weights) {
+  const Matrix& in = inputs->val();
+  const Matrix& w = weights->val();
+  Block *res = new Block({inputs, weights}, in.rows, w.cols);
 
-  Block *res = new Block({a1, a2}, a1->val().rows, a2->val().cols);
-  res->set_fun(
-      [a1, a2](Matrix *out) { multiply_matrix(a1->val(), a2->val(), out); });
+  const Matrix& dout = res->bawd_fun->val();
 
-  a1->bawd_fun->set_fun([a2, res](Matrix *out) {
-    multiply_matrix(res->bawd_fun->val(), TransposedView(a2->val()), out);
+  res->set_fun([in, w](Matrix *out) { 
+     multiply_matrix(
+         in,   // m, n
+         w,    // n, k
+         out); // m, k
   });
 
-  a2->bawd_fun->set_fun([a1, res](Matrix *out) {
-    multiply_matrix(TransposedView(a1->val()), res->bawd_fun->val(), out);
+  inputs->bawd_fun->set_fun([w, dout](Matrix *dinputs) {
+    multiply_matrix(
+       dout,               // m, k
+       TransposedView(w),  // k, n
+       dinputs);           // m, n
+  });
+
+  weights->bawd_fun->set_fun([in, dout](Matrix *dweights) {
+    multiply_matrix(
+        TransposedView(in),  // n, m
+        dout,                // m, k         
+        dweights);           // n, k
   });
 
   return res;
@@ -249,8 +263,6 @@ struct ReshapedView {
         size_t src_c = idx % src->cols;
         return src->at(src_r, src_c);
     }
-
-
 };
 
 // This is requried to build view of a view
@@ -259,61 +271,88 @@ ReshapedView(const ReshapedView<M>&) -> ReshapedView<ReshapedView<M>>;
 
 template <class M>
 struct SlidingWindowView {
-    const M& src;
+    M* src;
     int rows;
     int cols;
     size_t window_rows;
     size_t window_cols;
-    SlidingWindowView(const M& src, size_t window_rows, size_t window_cols)
-        : src(src), window_rows(window_rows), window_cols(window_cols) { 
+    SlidingWindowView(M& src, size_t window_rows, size_t window_cols)
+        : src(&src), window_rows(window_rows), window_cols(window_cols) { 
        rows = src.rows * src.cols;
        cols = window_rows * window_cols;
     }
     inline const double &at(int r, int c) const { 
-        size_t base_row = r / src.cols;
-        size_t base_col = r % src.cols;
+        auto [base_row, base_col, delta_row, delta_col] = std::tuple(
+           r / src->cols, r % src->cols, c / window_cols, c % window_cols);
+
+        size_t src_r = (base_row + delta_row) % src->rows;
+        size_t src_c = (base_col + delta_col) % src->cols;
+        return src->at(src_r, src_c);
+    }
+
+    inline double &at(int r, int c) {
+        // TODO:
+        // this is gona be a bit crazy. instead of assigning, it should calc the difference
+        // between prev value and new value, and update source with that difference. 
+        size_t base_row = r / src->cols;
+        size_t base_col = r % src->cols;
         size_t delta_row = c / window_cols;
         size_t delta_col = c % window_cols;
         size_t row = base_row + delta_row;
         size_t col = base_col + delta_col;
-        row = row % src.rows;
-        col = col % src.cols;
-        return src.at(row, col);
+        row = row % src->rows;
+        col = col % src->cols;
+        return src->at(row, col);
     }
 };
 
-
+// Circular convolution, to keep it simple
+// Output size is same as input
 static Block *Convolution(Block *input, Block *kernel) {
-
   Block *res = new Block({input, kernel}, input->val().rows, input->val().cols);
-
+  // input -> m, n
+  // kernel -> k, l
+  // output -> m, n
   res->set_fun([input, kernel](Matrix *out) {
-     size_t kr = kernel->val().rows;
-     size_t kc = kernel->val().cols;
-     SlidingWindowView input_view(input->val(), kr, kc);    // dims: input.rows * input.cols, kr*kc
-     ReshapedView kernel_flat(kernel->val(), kr * kc, 1);   // dims:                          kr*kc, 1
-     ReshapedView out_flat(*out, out->rows * out->cols, 1); // dims: input.rows * input.cols,        1
-     multiply_matrix(input_view, kernel_flat, &out_flat); 
+     auto [k, l] = std::pair(kernel->val().rows, kernel->val().cols);
+     SlidingWindowView input_slide(input->val(), k, l);      
+     ReshapedView kernel_flat(kernel->val(), k * l, 1);    
+     ReshapedView out_flat(*out, out->rows * out->cols, 1);
+     //
+     multiply_matrix(
+        input_slide,    // m * n, k * l
+        kernel_flat,   // k * l, 1
+        &out_flat);    // m * n, 1
   });
 
+  // TODO: test everything below
+  const Matrix& dout = res->bawd_fun->val();
 
-/*
-  input->bawd_fun->set_fun([kernel, res](Matrix *out) {
+  input->bawd_fun->set_fun([kernel, dout](Matrix *dinputs) {
+     auto [k, l] = std::pair(kernel->val().rows, kernel->val().cols);
+     ReshapedView dout_flat(dout, dout.rows * dout.cols, 1);
+     ReshapedView kernel_flat(kernel->val(), k * l, 1);     
+     SlidingWindowView dinput_slide(*dinputs, k, l);       
+     //
      multiply_matrix(
-        res->bawd_fun->val(), 
-        TransposedView(kernel->val()), 
-        out
+        dout_flat,                    // m * n, 1
+        TransposedView(kernel_flat),  // 1, k * l
+        &dinput_slide                 // m * n, k * l
      );
   });
 
-  kernel->bawd_fun->set_fun([input, res](Matrix *out) {
-    multiply_matrix(
-        TransposedView(input->val()), 
-        res->bawd_fun->val(), 
-        out
+  kernel->bawd_fun->set_fun([input, dout](Matrix *dkernel) {
+     auto [k, l] = std::pair(dkernel->rows, dkernel->cols);
+     SlidingWindowView input_slide(input->val(), k, l);     
+     ReshapedView dout_flat(dout, dout.rows * dout.cols, 1);
+     ReshapedView dkernel_flat(*dkernel, k * l, 1);     
+     //
+     multiply_matrix(
+        TransposedView(input_slide),  // k * l, m * n
+        dout_flat,                    // m * n, 1
+        &dkernel_flat                 // k * l, 1
     );
   });
-*/
 
   return res;
 }
