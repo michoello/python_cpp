@@ -225,6 +225,8 @@ static Block *MatMul(Block *a1, Block *a2) {
   return res;
 }
 
+
+
 // TransposedView view of the matrix with no overhead. For MatMul bawd_fun
 // gradient propagation
 template <class M>
@@ -279,6 +281,44 @@ struct SlidingWindowView {
         return src.at(row, col);
     }
 };
+
+
+static Block *Convolution(Block *input, Block *kernel) {
+
+  Block *res = new Block({input, kernel}, input->val().rows, input->val().cols);
+
+  res->set_fun([input, kernel](Matrix *out) {
+     size_t kr = kernel->val().rows;
+     size_t kc = kernel->val().cols;
+     SlidingWindowView input_view(input->val(), kr, kc);    // dims: input.rows * input.cols, kr*kc
+     ReshapedView kernel_flat(kernel->val(), kr * kc, 1);   // dims:                          kr*kc, 1
+     ReshapedView out_flat(*out, out->rows * out->cols, 1); // dims: input.rows * input.cols,        1
+     multiply_matrix(input_view, kernel_flat, &out_flat); 
+  });
+
+
+/*
+  input->bawd_fun->set_fun([kernel, res](Matrix *out) {
+     multiply_matrix(
+        res->bawd_fun->val(), 
+        TransposedView(kernel->val()), 
+        out
+     );
+  });
+
+  kernel->bawd_fun->set_fun([input, res](Matrix *out) {
+    multiply_matrix(
+        TransposedView(input->val()), 
+        res->bawd_fun->val(), 
+        out
+    );
+  });
+*/
+
+  return res;
+}
+
+
 
 using DifFu0 = std::function<void(double)>;
 using DifFu1 = std::function<double(double)>;
@@ -407,6 +447,10 @@ static Block *Add(Block *a1, Block *a2) {
 
 // Difference
 static Block *Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
+
+
+
+
 
 static Block *Sum(Block *a) {
   auto *res = new Block({a}, 1, 1);

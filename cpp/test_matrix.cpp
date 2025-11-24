@@ -609,38 +609,6 @@ TEST_CASE(full_layer_with_loss_with_grads) {
   CHECK(assertEqualVectors(bce->fval(), {{0.734, 0.723, 0.691}}));
 }
 
-TEST_CASE(convolution) {
-  CHECK(assertEqualVectors(
-     {{0.734, 0.723, 0.691}},
-     {{0.734, 0.723, 0.691}}
-  ));
-
-  Mod3l m;
-
-  Block *db = Data(&m, 3, 4);
-  m.set_data(db, {{1, 2, 3, 4}, {5, 6, 7, 8}, {9, 10, 11, 12}});
-
-  Block *da = Data(&m, 2, 3);
-  m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
-
-  Block *dc = MatMul(da, db);
-
-  CHECK(assertEqualVectors(da->fval(), {
-                                           {1, 2, 3},
-                                           {4, 5, 6},
-                                       }));
-
-  dc->calc_fval();
-
-  CHECK(assertEqualVectors(dc->fval(), {
-                                           {38, 44, 50, 56},
-                                           {83, 98, 113, 128},
-                                       }));
-
-
-}
-
-
 TEST_CASE(matrix_views) {
   Matrix A(2, 3);
   A.set_data({{1, 2, 3}, {3, 4, 5}});
@@ -680,6 +648,8 @@ TEST_CASE(matrix_views) {
   // Each row represents the content of
   // sliding window 3*3 rolling over b
   // circular
+  CHECK(swv.rows = b.rows * b.cols);
+  CHECK(swv.cols = 3 * 3);
   CHECK(assertEqualVectors(value(swv),{ 
     { 1, 2, 3,   5, 6, 7,  9, 10, 11 },
     { 2, 3, 4,   6, 7, 8,  10, 11,12 },
@@ -694,7 +664,9 @@ TEST_CASE(matrix_views) {
     { 11, 12, 9,  3, 4, 1,  7, 8, 5 },
     { 12, 9, 10,  4, 1, 2,  8, 5, 6 },
   }));
+}
 
+TEST_CASE(convolutions) {
   // Convolution op using ReshapeView and SlidingWindowView
   Matrix input(3, 4);
   input.set_data({
@@ -725,12 +697,24 @@ TEST_CASE(matrix_views) {
     { 2, 5, 4, -1 }
   }));
 
-  assert(result.at(0, 0) == input.at(0, 0) + input.at(1, 1)); // 1  = 1 + 0
-  assert(result.at(1, 2) == input.at(1, 2) + input.at(2, 3)); // -3 = -1 + -2
-  assert(result.at(2, 1) == input.at(2, 1) + input.at(0, 2)); // 5 = 2 + 3
+  CHECK(result.at(0, 0) == input.at(0, 0) + input.at(1, 1)); // 1  = 1 + 0
+  CHECK(result.at(1, 2) == input.at(1, 2) + input.at(2, 3)); // -3 = -1 + -2
+  CHECK(result.at(2, 1) == input.at(2, 1) + input.at(0, 2)); // 5 = 2 + 3
+  //
+  // Now in model
+  Mod3l m;
+
+  Block *dinput = Data(&m, 3, 4);
+  m.set_data(dinput, value(input));
   
 
+  Block *dkernel = Data(&m, 2, 2);
+  m.set_data(dkernel, value(kernel));
 
+  Block *dc = Convolution(dinput, dkernel);
+  dc->calc_fval();
+
+  CHECK(assertEqualVectors(dc->fval(), value(result)));
 }
 
 
