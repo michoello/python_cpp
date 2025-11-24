@@ -426,6 +426,33 @@ TEST_CASE(sse) {
   CHECK(assertEqualVectors(ds->fval(), {
                                            {5},
                                        }));
+
+  // ---
+  Block *da1 = Data(&m, 1, 1);
+  m.set_data(da1, {{0}});
+
+  Block *db1 = Data(&m, 1, 1);
+  m.set_data(db1, {{3}});
+
+  Block *ds1 = SSE(da1, db1);
+
+  // TODO: throw an exception? Calculate automatically?
+  CHECK(assertEqualVectors(ds1->fval(), { {1}, }));
+
+  ds1->calc_fval();
+  CHECK(assertEqualVectors(ds1->fval(), { {9}, }));
+
+  // bvals before calc_bval
+  CHECK(assertEqualVectors(ds1->bval(), { {1}, }));
+  CHECK(assertEqualVectors(da1->bval(), { {1}, }));
+
+  // after
+  da1->calc_bval();
+  db1->calc_bval();
+  CHECK(assertEqualVectors(ds1->bval(), { {1}, }));
+  CHECK(assertEqualVectors(da1->bval(), { {-6}, }));
+  CHECK(assertEqualVectors(db1->bval(), { {6}, }));
+
 }
 
 TEST_CASE(sse_with_grads) {

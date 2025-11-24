@@ -519,13 +519,18 @@ static Block *SSE(Block *a1, Block *a2) {
     out->at(0, 0) = s;
   });
 
-  a1->bawd_fun->set_fun([a1, a2](Matrix *out) {
-    Funcs::for_each_el(a1->val(), a2->val(), out, [](double a, double b){ 
+  a1->bawd_fun->set_fun([a1, a2](Matrix *da1) {
+    Funcs::for_each_el(a1->val(), a2->val(), da1, [](double a, double b){ 
         return 2 * (a - b);
     });
-
-
   });
+
+  a2->bawd_fun->set_fun([a1, a2](Matrix *da2) {
+    Funcs::for_each_el(a1->val(), a2->val(), da2, [](double a, double b){ 
+        return 2 * (b - a);
+    });
+  });
+
 
   return res;
 }

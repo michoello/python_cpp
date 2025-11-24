@@ -13,7 +13,7 @@ Block::Block(const std::vector<Block *> &argz, int r, int c) {
   for (Block *arg : argz) {
     if (model == nullptr && arg->model != nullptr) {
       arg->model->add(this);
-      // TODO: check that they all belong to the same model
+      // TODO: check that all args belong to the same model
     }
     fowd_fun->args.push_back(arg->fowd_fun);
   }
