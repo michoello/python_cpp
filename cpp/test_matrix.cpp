@@ -539,6 +539,40 @@ TEST_CASE(sigmoid_with_gradas) {
   CHECK(assertEqualVectors(mm->bval(), {{0.2492, 0.2495, 0.2489}}));
 }
 
+TEST_CASE(bce_values) {
+  Mod3l m;
+  Block *ypred = Data(&m, 1, 1);
+  Block *ytrue = Data(&m, 1, 1);
+  Block *bce = BCE(ypred, ytrue);
+  
+
+  //auto check_values = [&m, &ypred, &ytrue, &bce](double yp, double yt, double expected) {
+  auto check_values = [&](double yp, double yt, double expected) {
+    m.set_data(ypred, {{yp}});
+    m.set_data(ytrue, {{yt}});
+    bce->calc_fval();
+    CHECK(assertEqualVectors(bce->fval(), {{expected}}));
+  };
+
+  check_values(1.0, 1.0, 0);       // complete certainty
+  check_values(0.9, 1.0, 0.105);
+  check_values(0.5, 1.0, 0.693);   // full uncertainty
+  check_values(0.0, 1.0, 27.631);  // epsiloned kinda infinity
+
+  check_values(0.0, 0.0, 0);       // complete certainty
+  check_values(0.5, 0.0, 0.693);   // full uncertainty
+  check_values(0.9, 0.0, 2.303);
+  check_values(1.0, 0.0, 27.631);  // epsiloned kinda infinity
+
+  check_values(0.0, 0.5, 13.816);  // half infinity
+  check_values(0.5, 0.5, 0.693);   // full uncertainty
+  check_values(0.6, 0.5, 0.714);
+  check_values(0.9, 0.5, 1.204);
+  check_values(1.0, 0.5, 13.816);  // another half
+}
+
+
+
 // see test_bce_loss in python tests
 TEST_CASE(bce_with_grads) {
   Mod3l m;

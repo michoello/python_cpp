@@ -501,6 +501,12 @@ static Block *SSE(Block *a1, Block *a2) {
   return res;
 }
 
+
+static double clip(double p) {
+	double epsilon = 1e-12; // small value to avoid log(0)
+	return std::min(std::max(p, epsilon), 1.0 - epsilon);
+}
+
 // Binary Cross Enthropy
 // TODO: calc average as a single value. Currently it is consistent with
 // python impl having same flaw
@@ -509,16 +515,14 @@ static Block *BCE(Block *a1, Block *a2) {
 
   res->set_fun([a1, a2](Matrix *out) {
     for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t) {
-      double epsilon = 1e-12; // small value to avoid log(0)
-      double p = std::min(std::max(y_p, epsilon), 1.0 - epsilon);
+      double p = clip(y_p); 
       return -(y_t * std::log(p) + (1.0 - y_t) * std::log(1.0 - p));
     });
   });
 
   a1->bawd_fun->set_fun([a1, a2](Matrix *out) {
     for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t) {
-      double epsilon = 1e-12;
-      double p = std::min(std::max(y_p, epsilon), 1.0 - epsilon);
+      double p = clip(y_p); 
       return -(y_t / p) + ((1.0 - y_t) / (1.0 - p));
     });
   });
