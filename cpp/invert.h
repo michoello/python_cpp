@@ -92,20 +92,20 @@ void multiply_matrix(const T &a, const U &b, V *c) {
 
 struct LazyFunc {
   std::vector<LazyFunc *> args;
-  Matrix _val;
+  Matrix mtx;
   std::function<void(Matrix *)> fun = [](Matrix *) {};
 
-  Matrix &val() { return _val; }
-  const Matrix &val() const { return _val; }
+  Matrix &val() { return mtx; }
+  const Matrix &val() const { return mtx; }
 
   template <typename F> void set_fun(F &&f) { fun = std::forward<F>(f); }
 
   LazyFunc(const std::vector<LazyFunc *> &argz, int r, int c)
-      : args(argz), _val(r, c, 1.0) {}
+      : args(argz), mtx(r, c, 1.0) {}
 
-  void calc_fval() {
+  void calc() {
     for (auto *arg : args) {
-      arg->calc_fval();
+      arg->calc();
     }
     fun(&val());
   }
@@ -116,17 +116,16 @@ struct Mod3l;
 struct Block {
 
   // TODO: delete these two guys?
-  Matrix &val() { return fowd_fun->_val; }
-  const Matrix &val() const { return fowd_fun->_val; }
+  Matrix &val() { return fowd_fun->mtx; }
+  const Matrix &val() const { return fowd_fun->mtx; }
 
   // forward value
   std::vector<std::vector<double>> fval() const {
-    //return fowd_fun->_val.value2();
-    return value(fowd_fun->_val); //.value2();
+    return value(fowd_fun->val());
   }
 
   std::vector<std::vector<double>> bval() const {
-    return value(bawd_fun->val()); //.value2();
+    return value(bawd_fun->val());
   }
 
   template <typename F> void set_fun(F &&f) { fowd_fun->set_fun(f); }
@@ -149,14 +148,16 @@ struct Block {
     }
   }
 
-  void calc_fval() { fowd_fun->calc_fval(); }
+  void calc_fval() { fowd_fun->calc(); }
 
-  void calc_bval() { bawd_fun->calc_fval(); }
+  void calc_bval() { bawd_fun->calc(); }
 
   void apply_bval(float learning_rate) {
-    for (int i = 0; i < val().rows; i++) {
-      for (int j = 0; j < val().cols; j++) {
-        val().at(i, j) -= bawd_fun->val().at(i, j) * learning_rate;
+    Matrix& val = fowd_fun->val();
+    Matrix& grads = bawd_fun->val();
+    for (int i = 0; i < val.rows; i++) {
+      for (int j = 0; j < val.cols; j++) {
+        val.at(i, j) -= grads.at(i, j) * learning_rate;
       }
     }
   }
