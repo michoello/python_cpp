@@ -122,17 +122,6 @@ TEST_CASE(shared_data) {
   assert(B.at(1, 1) == 5);
 }
 
-TEST_CASE(random_matrix) {
-  Matrix A(10, 15);
-  A.fill_uniform();
-  for (size_t r = 0; r < 10; ++r) {
-    for (size_t c = 0; c < 15; ++c) {
-      assert(A.at(r, c) <= 1);
-      assert(A.at(r, c) >= -1);
-    }
-  }
-}
-
 template <typename T> bool approxEqual(T a, T b, double tol = 1e-3) {
   if constexpr (std::is_floating_point_v<T>) {
     return std::fabs(a - b) <= tol;

@@ -3,6 +3,7 @@
  *
  */
 
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wunused-function"
 
 #include <cassert>
@@ -37,19 +38,6 @@ struct Matrix {
       for (int c = 0; c < cols; ++c) {
         at(r, c) = vals[r][c];
       }
-    }
-  }
-
-  void fill_uniform() {
-    // Random engine
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-
-    // Uniform distribution in [-1, 1]
-    std::uniform_real_distribution<double> dist(-1.0, 1.0);
-
-    for (auto &x : *data) {
-      x = dist(gen);
     }
   }
 
@@ -89,10 +77,13 @@ void multiply_matrix(const T &a, const U &b, V *c) {
   }
 }
 
+using Matrices = std::vector<Matrix>;
+
 struct LazyFunc {
   std::vector<LazyFunc *> args;
+  Matrices arg_mats;
   Matrix mtx;
-  std::function<void(Matrix *)> fun = [](Matrix *) {};
+  std::function<void(const Matrices&, Matrix *)> fun = [](const Matrices&, Matrix *) {};
 
   Matrix &val() { return mtx; }
   const Matrix &val() const { return mtx; }
@@ -100,13 +91,17 @@ struct LazyFunc {
   template <typename F> void set_fun(F &&f) { fun = std::forward<F>(f); }
 
   LazyFunc(const std::vector<LazyFunc *> &argz, int r, int c)
-      : args(argz), mtx(r, c, 1.0) {}
+      : args(argz), mtx(r, c, 1.0) {
+      /*for(const auto& arg: args) {
+          arg_mats.push_back(arg->val());
+      }*/
+  }
 
   void calc() {
     for (auto *arg : args) {
       arg->calc();
     }
-    fun(&val());
+    fun(arg_mats, &mtx);
   }
 };
 
@@ -148,9 +143,7 @@ struct Block {
   }
 
   void calc_fval() { fowd_fun->calc(); }
-
   void calc_bval() { bawd_fun->calc(); }
-
   void apply_bval(float learning_rate) {
     Matrix &val = fowd_fun->val();
     Matrix &grads = bawd_fun->val();
@@ -212,19 +205,20 @@ static Block *MatMul(Block *inputs, Block *weights) {
 
   const Matrix &dout = res->bawd_fun->val();
 
-  res->set_fun([in, w](Matrix *out) {
+  res->set_fun([](const Matrices& ins, Matrix *out) {
+    auto [in, w] = std::pair(ins[0], ins[1]);
     multiply_matrix(in,   // m, n
                     w,    // n, k
                     out); // m, k
   });
 
-  inputs->bawd_fun->set_fun([w, dout](Matrix *dinputs) {
+  inputs->bawd_fun->set_fun([w, dout](const Matrices& ins, Matrix *dinputs) {
     multiply_matrix(dout,              // m, k
                     TransposedView(w), // k, n
                     dinputs);          // m, n
   });
 
-  weights->bawd_fun->set_fun([in, dout](Matrix *dweights) {
+  weights->bawd_fun->set_fun([in, dout](const Matrices& ins, Matrix *dweights) {
     multiply_matrix(TransposedView(in), // n, m
                     dout,               // m, k
                     dweights);          // n, k
@@ -306,7 +300,7 @@ static Block *Convolution(Block *input, Block *kernel) {
   // input -> m, n
   // kernel -> k, l
   // output -> m, n
-  res->set_fun([input, kernel](Matrix *out) {
+  res->set_fun([input, kernel](const Matrices& ins, Matrix *out) {
     auto [k, l] = std::pair(kernel->val().rows, kernel->val().cols);
     SlidingWindowView input_slide(input->val(), k, l);
     ReshapedView kernel_flat(kernel->val(), k * l, 1);
@@ -320,7 +314,7 @@ static Block *Convolution(Block *input, Block *kernel) {
   // TODO: test everything below
   const Matrix &dout = res->bawd_fun->val();
 
-  input->bawd_fun->set_fun([kernel, dout](Matrix *dinputs) {
+  input->bawd_fun->set_fun([kernel, dout](const Matrices& ins, Matrix *dinputs) {
     auto [k, l] = std::pair(kernel->val().rows, kernel->val().cols);
     ReshapedView dout_flat(dout, dout.rows * dout.cols, 1);
     ReshapedView kernel_flat(kernel->val(), k * l, 1);
@@ -332,7 +326,7 @@ static Block *Convolution(Block *input, Block *kernel) {
     );
   });
 
-  kernel->bawd_fun->set_fun([input, dout](Matrix *dkernel) {
+  kernel->bawd_fun->set_fun([input, dout](const Matrices& ins, Matrix *dkernel) {
     auto [k, l] = std::pair(dkernel->rows, dkernel->cols);
     SlidingWindowView input_slide(input->val(), k, l);
     ReshapedView dout_flat(dout, dout.rows * dout.cols, 1);
@@ -399,11 +393,11 @@ static void for_each_el(const Matrix &in1, const Matrix &in2, Matrix *out,
 
 static Block *Reshape(Block *a, int rows, int cols) {
   Block *res = new Block({a}, rows, cols);
-  res->set_fun([a](Matrix *out) {
-    for_each_el(a->val(), out, [](double a) { return a; });
+  res->set_fun([](const Matrices& ins, Matrix *out) {
+    for_each_el(ins[0], out, [](double a) { return a; });
   });
 
-  a->bawd_fun->set_fun([res](Matrix *) {
+  a->bawd_fun->set_fun([res](const Matrices& ins, Matrix *) {
     // TODO
   });
   return res;
@@ -414,9 +408,9 @@ template <typename F1, typename F2>
 static Block *ElFun(Block *a, F1 fwd, F2 bwd) {
   Block *res = new Block({a}, a->val().rows, a->val().cols);
 
-  res->set_fun([a, fwd, res](Matrix *out) { for_each_el(a->val(), out, fwd); });
+  res->set_fun([fwd](const Matrices& ins, Matrix *out) { for_each_el(ins[0], out, fwd); });
 
-  a->bawd_fun->set_fun([a, res, bwd](Matrix *out) {
+  a->bawd_fun->set_fun([a, res, bwd](const Matrices& ins, Matrix *out) {
     // Calc local derivative
     for_each_el(a->val(), out, bwd);
 
@@ -442,16 +436,16 @@ static Block *MulEl(Block *a, double n) {
 static Block *Add(Block *a1, Block *a2) {
   auto *res = new Block({a1, a2}, a1->val().rows, a1->val().cols);
 
-  res->set_fun([a1, a2](Matrix *out) {
-    for_each_el(a1->val(), a2->val(), out,
+  res->set_fun([](const Matrices& ins, Matrix *out) {
+    for_each_el(ins[0], ins[1], out,
                 [](double a, double b) { return a + b; });
   });
 
-  a1->bawd_fun->set_fun([res](Matrix *out) {
+  a1->bawd_fun->set_fun([res](const Matrices& ins, Matrix *out) {
     for_each_el(res->bawd_fun->val(), out, [](double g) { return g; });
   });
 
-  a2->bawd_fun->set_fun([res](Matrix *out) {
+  a2->bawd_fun->set_fun([res](const Matrices& ins, Matrix *out) {
     for_each_el(res->bawd_fun->val(), out, [](double g) { return g; });
   });
 
@@ -464,13 +458,13 @@ static Block *Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
 static Block *Sum(Block *a) {
   auto *res = new Block({a}, 1, 1);
 
-  res->set_fun([a](Matrix *out) {
+  res->set_fun([](const Matrices& ins, Matrix *out) {
     double s = 0;
-    for_each_el(a->val(), [&s](double a) { s += a; });
+    for_each_el(ins[0], [&s](double a) { s += a; });
     out->at(0, 0) = s;
   });
 
-  a->bawd_fun->set_fun([a, res](Matrix *out) {
+  a->bawd_fun->set_fun([a, res](const Matrices& ins, Matrix *out) {
     double grad = res->bawd_fun->val().at(0, 0);
     for_each_el(a->val(), out, [grad](double) { return grad; });
   });
@@ -481,19 +475,19 @@ static Block *Sum(Block *a) {
 static Block *SSE(Block *a1, Block *a2) {
   auto *res = new Block({a1, a2}, 1, 1);
 
-  res->set_fun([a1, a2](Matrix *out) {
+  res->set_fun([](const Matrices& ins, Matrix *out) {
     double s = 0;
-    for_each_el(a1->val(), a2->val(),
+    for_each_el(ins[0], ins[1],
                 [&s](double a, double b) { s += square(b - a); });
     out->at(0, 0) = s;
   });
 
-  a1->bawd_fun->set_fun([a1, a2](Matrix *da1) {
+  a1->bawd_fun->set_fun([a1, a2](const Matrices& ins, Matrix *da1) {
     for_each_el(a1->val(), a2->val(), da1,
                 [](double a, double b) { return 2 * (a - b); });
   });
 
-  a2->bawd_fun->set_fun([a1, a2](Matrix *da2) {
+  a2->bawd_fun->set_fun([a1, a2](const Matrices& ins, Matrix *da2) {
     for_each_el(a1->val(), a2->val(), da2,
                 [](double a, double b) { return 2 * (b - a); });
   });
@@ -513,14 +507,14 @@ static double clip(double p) {
 static Block *BCE(Block *a1, Block *a2) {
   auto *res = new Block({a1, a2}, a1->val().rows, a1->val().cols);
 
-  res->set_fun([a1, a2](Matrix *out) {
-    for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t) {
+  res->set_fun([](const Matrices& ins, Matrix *out) {
+    for_each_el(ins[0], ins[1], out, [](double y_p, double y_t) {
       double p = clip(y_p); 
       return -(y_t * std::log(p) + (1.0 - y_t) * std::log(1.0 - p));
     });
   });
 
-  a1->bawd_fun->set_fun([a1, a2](Matrix *out) {
+  a1->bawd_fun->set_fun([a1, a2](const Matrices& ins, Matrix *out) {
     for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t) {
       double p = clip(y_p); 
       return -(y_t / p) + ((1.0 - y_t) / (1.0 - p));
