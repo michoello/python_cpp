@@ -16,7 +16,7 @@
 std::vector<int> invert(const std::vector<int> &v);
 
 class Matrix;
-class Funcs;
+// class Funcs;
 
 struct Matrix {
   int rows;
@@ -60,15 +60,14 @@ struct Matrix {
 };
 
 // Extracts the full value of Matrix-like object(i.e. Matrix or matrix view)
-template <class M>
-std::vector<std::vector<double>> value(const M& m) {
-    std::vector<std::vector<double>> out(m.rows, std::vector<double>(m.cols));
-    for (int i = 0; i < m.rows; i++) {
-      for (int j = 0; j < m.cols; j++) {
-        out[i][j] = m.at(i, j);
-      }
+template <class M> std::vector<std::vector<double>> value(const M &m) {
+  std::vector<std::vector<double>> out(m.rows, std::vector<double>(m.cols));
+  for (int i = 0; i < m.rows; i++) {
+    for (int j = 0; j < m.cols; j++) {
+      out[i][j] = m.at(i, j);
     }
-    return out;
+  }
+  return out;
 }
 
 template <class T, class U, class V>
@@ -153,8 +152,8 @@ struct Block {
   void calc_bval() { bawd_fun->calc(); }
 
   void apply_bval(float learning_rate) {
-    Matrix& val = fowd_fun->val();
-    Matrix& grads = bawd_fun->val();
+    Matrix &val = fowd_fun->val();
+    Matrix &grads = bawd_fun->val();
     for (int i = 0; i < val.rows; i++) {
       for (int j = 0; j < val.cols; j++) {
         val.at(i, j) -= grads.at(i, j) * learning_rate;
@@ -192,119 +191,112 @@ static Block *Data(Mod3l *model, int rows, int cols) {
   return res;
 }
 
-
 // TransposedView view of the matrix with no overhead. For MatMul bawd_fun
 // gradient propagation
-template <class M>
-struct TransposedView {
-    const M& src;
-    int rows;
-    int cols;
-    TransposedView(const M& src)
-        : src(src), rows(src.cols), cols(src.rows) {}
-    inline const double &at(int r, int c) const { return src.at(c, r); }
+template <class M> struct TransposedView {
+  const M &src;
+  int rows;
+  int cols;
+  TransposedView(const M &src) : src(src), rows(src.cols), cols(src.rows) {}
+  inline const double &at(int r, int c) const { return src.at(c, r); }
 };
 
 // This is requried to build view of a view
-template<class M>
-TransposedView(const TransposedView<M>&) -> TransposedView<TransposedView<M>>;
+template <class M>
+TransposedView(const TransposedView<M> &) -> TransposedView<TransposedView<M>>;
 
 static Block *MatMul(Block *inputs, Block *weights) {
-  const Matrix& in = inputs->val();
-  const Matrix& w = weights->val();
+  const Matrix &in = inputs->val();
+  const Matrix &w = weights->val();
   Block *res = new Block({inputs, weights}, in.rows, w.cols);
 
-  const Matrix& dout = res->bawd_fun->val();
+  const Matrix &dout = res->bawd_fun->val();
 
-  res->set_fun([in, w](Matrix *out) { 
-     multiply_matrix(
-         in,   // m, n
-         w,    // n, k
-         out); // m, k
+  res->set_fun([in, w](Matrix *out) {
+    multiply_matrix(in,   // m, n
+                    w,    // n, k
+                    out); // m, k
   });
 
   inputs->bawd_fun->set_fun([w, dout](Matrix *dinputs) {
-    multiply_matrix(
-       dout,               // m, k
-       TransposedView(w),  // k, n
-       dinputs);           // m, n
+    multiply_matrix(dout,              // m, k
+                    TransposedView(w), // k, n
+                    dinputs);          // m, n
   });
 
   weights->bawd_fun->set_fun([in, dout](Matrix *dweights) {
-    multiply_matrix(
-        TransposedView(in),  // n, m
-        dout,                // m, k         
-        dweights);           // n, k
+    multiply_matrix(TransposedView(in), // n, m
+                    dout,               // m, k
+                    dweights);          // n, k
   });
 
   return res;
 }
 
-
-
 // TransposedView view of the matrix with no overhead. For MatMul bawd_fun
 // gradient propagation
-template <class M>
-struct ReshapedView {
-    M* src;
-    int rows;
-    int cols;
-    ReshapedView(M& src, size_t rows, size_t cols)
-        : src(&src), rows(rows), cols(cols) { /* TODO: check rows*cols=rows*cols */ }
-    inline const double &at(int r, int c) const { 
-        size_t idx = r * cols + c;
-        size_t src_r = idx / src->cols;
-        size_t src_c = idx % src->cols;
-        return src->at(src_r, src_c);
-    }
+template <class M> struct ReshapedView {
+  M *src;
+  int rows;
+  int cols;
+  ReshapedView(M &src, size_t rows, size_t cols)
+      : src(&src), rows(rows),
+        cols(cols) { /* TODO: check rows*cols=rows*cols */
+  }
+  inline const double &at(int r, int c) const {
+    size_t idx = r * cols + c;
+    size_t src_r = idx / src->cols;
+    size_t src_c = idx % src->cols;
+    return src->at(src_r, src_c);
+  }
 
-    inline double &at(int r, int c) { 
-        size_t idx = r * cols + c;
-        size_t src_r = idx / src->cols;
-        size_t src_c = idx % src->cols;
-        return src->at(src_r, src_c);
-    }
+  inline double &at(int r, int c) {
+    size_t idx = r * cols + c;
+    size_t src_r = idx / src->cols;
+    size_t src_c = idx % src->cols;
+    return src->at(src_r, src_c);
+  }
 };
 
 // This is requried to build view of a view
-template<class M>
-ReshapedView(const ReshapedView<M>&) -> ReshapedView<ReshapedView<M>>;
-
 template <class M>
-struct SlidingWindowView {
-    M* src;
-    int rows;
-    int cols;
-    size_t window_rows;
-    size_t window_cols;
-    SlidingWindowView(M& src, size_t window_rows, size_t window_cols)
-        : src(&src), window_rows(window_rows), window_cols(window_cols) { 
-       rows = src.rows * src.cols;
-       cols = window_rows * window_cols;
-    }
-    inline const double &at(int r, int c) const { 
-        auto [base_row, base_col, delta_row, delta_col] = std::tuple(
-           r / src->cols, r % src->cols, c / window_cols, c % window_cols);
+ReshapedView(const ReshapedView<M> &) -> ReshapedView<ReshapedView<M>>;
 
-        size_t src_r = (base_row + delta_row) % src->rows;
-        size_t src_c = (base_col + delta_col) % src->cols;
-        return src->at(src_r, src_c);
-    }
+template <class M> struct SlidingWindowView {
+  M *src;
+  int rows;
+  int cols;
+  size_t window_rows;
+  size_t window_cols;
+  SlidingWindowView(M &src, size_t window_rows, size_t window_cols)
+      : src(&src), window_rows(window_rows), window_cols(window_cols) {
+    rows = src.rows * src.cols;
+    cols = window_rows * window_cols;
+  }
+  inline const double &at(int r, int c) const {
+    auto [base_row, base_col, delta_row, delta_col] = std::tuple(
+        r / src->cols, r % src->cols, c / window_cols, c % window_cols);
 
-    inline double &at(int r, int c) {
-        // TODO:
-        // this is gona be a bit crazy. instead of assigning, it should calc the difference
-        // between prev value and new value, and update source with that difference. 
-        size_t base_row = r / src->cols;
-        size_t base_col = r % src->cols;
-        size_t delta_row = c / window_cols;
-        size_t delta_col = c % window_cols;
-        size_t row = base_row + delta_row;
-        size_t col = base_col + delta_col;
-        row = row % src->rows;
-        col = col % src->cols;
-        return src->at(row, col);
-    }
+    size_t src_r = (base_row + delta_row) % src->rows;
+    size_t src_c = (base_col + delta_col) % src->cols;
+    return src->at(src_r, src_c);
+  }
+
+  inline double &at(int r, int c) {
+    // TODO:
+    // this is gona be a bit crazy. instead of assigning, it should calc the
+    // difference between prev value and new value, and update source with that
+    // difference.
+    size_t base_row = r / src->cols;
+    size_t base_col = r % src->cols;
+    size_t delta_row = c / window_cols;
+    size_t delta_col = c % window_cols;
+    size_t row = base_row + delta_row;
+    size_t col = base_col + delta_col;
+    row = row % src->rows;
+    col = col % src->cols;
+    return src->at(row, col);
+  }
 };
 
 // Circular convolution, to keep it simple
@@ -315,171 +307,152 @@ static Block *Convolution(Block *input, Block *kernel) {
   // kernel -> k, l
   // output -> m, n
   res->set_fun([input, kernel](Matrix *out) {
-     auto [k, l] = std::pair(kernel->val().rows, kernel->val().cols);
-     SlidingWindowView input_slide(input->val(), k, l);      
-     ReshapedView kernel_flat(kernel->val(), k * l, 1);    
-     ReshapedView out_flat(*out, out->rows * out->cols, 1);
-     //
-     multiply_matrix(
-        input_slide,    // m * n, k * l
-        kernel_flat,   // k * l, 1
-        &out_flat);    // m * n, 1
+    auto [k, l] = std::pair(kernel->val().rows, kernel->val().cols);
+    SlidingWindowView input_slide(input->val(), k, l);
+    ReshapedView kernel_flat(kernel->val(), k * l, 1);
+    ReshapedView out_flat(*out, out->rows * out->cols, 1);
+    //
+    multiply_matrix(input_slide, // m * n, k * l
+                    kernel_flat, // k * l, 1
+                    &out_flat);  // m * n, 1
   });
 
   // TODO: test everything below
-  const Matrix& dout = res->bawd_fun->val();
+  const Matrix &dout = res->bawd_fun->val();
 
   input->bawd_fun->set_fun([kernel, dout](Matrix *dinputs) {
-     auto [k, l] = std::pair(kernel->val().rows, kernel->val().cols);
-     ReshapedView dout_flat(dout, dout.rows * dout.cols, 1);
-     ReshapedView kernel_flat(kernel->val(), k * l, 1);     
-     SlidingWindowView dinput_slide(*dinputs, k, l);       
-     //
-     multiply_matrix(
-        dout_flat,                    // m * n, 1
-        TransposedView(kernel_flat),  // 1, k * l
-        &dinput_slide                 // m * n, k * l
-     );
+    auto [k, l] = std::pair(kernel->val().rows, kernel->val().cols);
+    ReshapedView dout_flat(dout, dout.rows * dout.cols, 1);
+    ReshapedView kernel_flat(kernel->val(), k * l, 1);
+    SlidingWindowView dinput_slide(*dinputs, k, l);
+    //
+    multiply_matrix(dout_flat,                   // m * n, 1
+                    TransposedView(kernel_flat), // 1, k * l
+                    &dinput_slide                // m * n, k * l
+    );
   });
 
   kernel->bawd_fun->set_fun([input, dout](Matrix *dkernel) {
-     auto [k, l] = std::pair(dkernel->rows, dkernel->cols);
-     SlidingWindowView input_slide(input->val(), k, l);     
-     ReshapedView dout_flat(dout, dout.rows * dout.cols, 1);
-     ReshapedView dkernel_flat(*dkernel, k * l, 1);     
-     //
-     multiply_matrix(
-        TransposedView(input_slide),  // k * l, m * n
-        dout_flat,                    // m * n, 1
-        &dkernel_flat                 // k * l, 1
+    auto [k, l] = std::pair(dkernel->rows, dkernel->cols);
+    SlidingWindowView input_slide(input->val(), k, l);
+    ReshapedView dout_flat(dout, dout.rows * dout.cols, 1);
+    ReshapedView dkernel_flat(*dkernel, k * l, 1);
+    //
+    multiply_matrix(TransposedView(input_slide), // k * l, m * n
+                    dout_flat,                   // m * n, 1
+                    &dkernel_flat                // k * l, 1
     );
   });
 
   return res;
 }
 
+static double square(double d) { return d * d; }
 
-
-using DifFu0 = std::function<void(double)>;
-using DifFu1 = std::function<double(double)>;
-using DifFu2 = std::function<double(double, double)>;
-using DifFu20 = std::function<void(double, double)>;
-
-class Funcs {
-public:
-  static double square(double d) { return d * d; }
-
-  static double sigmoid(double x) {
-    if (x >= 0) {
-      double z = std::exp(-x);
-      return 1.0 / (1.0 + z);
-    } else {
-      double z = std::exp(x);
-      return z / (1.0 + z);
-    }
+static double sigmoid(double x) {
+  if (x >= 0) {
+    double z = std::exp(-x);
+    return 1.0 / (1.0 + z);
+  } else {
+    double z = std::exp(x);
+    return z / (1.0 + z);
   }
+}
 
-  static double sigmoid_derivative(double x) {
-    double s = sigmoid(x);
-    return s * (1.0 - s);
+static double sigmoid_derivative(double x) {
+  double s = sigmoid(x);
+  return s * (1.0 - s);
+}
+
+static double tbd(double) { return 0; }
+
+template <typename F> 
+static void for_each_el(const Matrix &in, F fu) {
+  for (size_t i = 0; i < in.data->size(); ++i) {
+    fu((*in.data)[i]);
   }
+}
 
-  static double tbd(double) { return 0; }
-
-  static DifFu1 get_mul_el(double n) {
-    return [n](double d) { return n * d; };
+template <typename F>
+static void for_each_el(const Matrix &in, Matrix *out, F fu) {
+  for (size_t i = 0; i < in.data->size(); ++i) {
+    (*out->data)[i] = fu((*in.data)[i]);
   }
+}
 
-  static void for_each_el(const Matrix &in, DifFu0 fu) {
-    for (size_t i = 0; i < in.data->size(); ++i) {
-      fu((*in.data)[i]);
-    }
+
+template <typename F>
+static void for_each_el(const Matrix &in1, const Matrix &in2, F fu) {
+  for (size_t i = 0; i < in1.data->size(); ++i) {
+    fu((*in1.data)[i], (*in2.data)[i]);
   }
+}
 
-  static void for_each_el(const Matrix &in, Matrix *out, DifFu1 fu) {
-    for (size_t i = 0; i < in.data->size(); ++i) {
-      (*out->data)[i] = fu((*in.data)[i]);
-    }
+template <typename F>
+static void for_each_el(const Matrix &in1, const Matrix &in2, Matrix *out,
+                        F fu) {
+  for (size_t i = 0; i < in1.data->size(); ++i) {
+    (*out->data)[i] = fu((*in1.data)[i], (*in2.data)[i]);
   }
-
-  static void for_each_el(const Matrix &in1, const Matrix &in2, Matrix *out,
-                          DifFu2 fu) {
-    for (size_t i = 0; i < in1.data->size(); ++i) {
-      (*out->data)[i] = fu((*in1.data)[i], (*in2.data)[i]);
-    }
-  }
-
-  static void for_each_el(const Matrix &in1, const Matrix &in2, 
-                          DifFu20 fu) {
-    for (size_t i = 0; i < in1.data->size(); ++i) {
-      fu((*in1.data)[i], (*in2.data)[i]);
-    }
-  }
+}
 
 
-};
-
-
-static Block *Reshape(Block* a, int rows, int cols) {
+static Block *Reshape(Block *a, int rows, int cols) {
   Block *res = new Block({a}, rows, cols);
-  res->set_fun([a](Matrix *out) { 
-     Funcs::for_each_el(a->val(), out,
-		    [](double a) { return a; }
-     );
+  res->set_fun([a](Matrix *out) {
+    for_each_el(a->val(), out, [](double a) { return a; });
   });
 
   a->bawd_fun->set_fun([res](Matrix *) {
-     // TODO
+    // TODO
   });
   return res;
 }
 
-
-
-
-static Block *ElFun(Block *a, DifFu1 fwd, DifFu1 bwd) {
+template <typename F1, typename F2>
+// static Block *ElFun(Block *a, DifFu1 fwd, DifFu1 bwd) {
+static Block *ElFun(Block *a, F1 fwd, F2 bwd) {
   Block *res = new Block({a}, a->val().rows, a->val().cols);
 
-  res->set_fun(
-      [a, fwd, res](Matrix *out) { Funcs::for_each_el(a->val(), out, fwd); });
+  res->set_fun([a, fwd, res](Matrix *out) { for_each_el(a->val(), out, fwd); });
 
   a->bawd_fun->set_fun([a, res, bwd](Matrix *out) {
     // Calc local derivative
-    Funcs::for_each_el(a->val(), out, bwd);
+    for_each_el(a->val(), out, bwd);
 
     // Multiply by incoming gradient
-    Funcs::for_each_el(
-        *out, res->bawd_fun->val(), out,
-        [](double local, double grads) { return local * grads; });
+    for_each_el(*out, res->bawd_fun->val(), out,
+                [](double local, double grads) { return local * grads; });
   });
 
   return res;
 }
 
-static Block *Sqrt(Block *a) { return ElFun(a, &Funcs::square, &Funcs::tbd); }
+static Block *Sqrt(Block *a) { return ElFun(a, &square, &tbd); }
 
 static Block *Sigmoid(Block *a) {
-  return ElFun(a, &Funcs::sigmoid, &Funcs::sigmoid_derivative);
+  return ElFun(a, &sigmoid, &sigmoid_derivative);
 }
 
 static Block *MulEl(Block *a, double n) {
-  return ElFun(a, Funcs::get_mul_el(n), &Funcs::tbd);
+  return ElFun(
+      a, [n](double d) { return n * d; }, &tbd);
 }
 
 static Block *Add(Block *a1, Block *a2) {
   auto *res = new Block({a1, a2}, a1->val().rows, a1->val().cols);
 
   res->set_fun([a1, a2](Matrix *out) {
-    Funcs::for_each_el(a1->val(), a2->val(), out,
-                       [](double a, double b) { return a + b; });
+    for_each_el(a1->val(), a2->val(), out,
+                [](double a, double b) { return a + b; });
   });
 
   a1->bawd_fun->set_fun([res](Matrix *out) {
-    Funcs::for_each_el(res->bawd_fun->val(), out, [](double g){ return g; });
+    for_each_el(res->bawd_fun->val(), out, [](double g) { return g; });
   });
 
   a2->bawd_fun->set_fun([res](Matrix *out) {
-    Funcs::for_each_el(res->bawd_fun->val(), out, [](double g){ return g; });
+    for_each_el(res->bawd_fun->val(), out, [](double g) { return g; });
   });
 
   return res;
@@ -488,22 +461,18 @@ static Block *Add(Block *a1, Block *a2) {
 // Difference
 static Block *Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
 
-
-
-
-
 static Block *Sum(Block *a) {
   auto *res = new Block({a}, 1, 1);
 
   res->set_fun([a](Matrix *out) {
     double s = 0;
-    Funcs::for_each_el(a->val(), [&s](double a){ s += a; });
+    for_each_el(a->val(), [&s](double a) { s += a; });
     out->at(0, 0) = s;
   });
 
   a->bawd_fun->set_fun([a, res](Matrix *out) {
     double grad = res->bawd_fun->val().at(0, 0);
-    Funcs::for_each_el(a->val(), out, [grad](double){ return grad; });
+    for_each_el(a->val(), out, [grad](double) { return grad; });
   });
 
   return res;
@@ -514,24 +483,20 @@ static Block *SSE(Block *a1, Block *a2) {
 
   res->set_fun([a1, a2](Matrix *out) {
     double s = 0;
-    Funcs::for_each_el(a1->val(), a2->val(), [&s](double a, double b){ 
-        s += Funcs::square(b - a);
-    });
+    for_each_el(a1->val(), a2->val(),
+                [&s](double a, double b) { s += square(b - a); });
     out->at(0, 0) = s;
   });
 
   a1->bawd_fun->set_fun([a1, a2](Matrix *da1) {
-    Funcs::for_each_el(a1->val(), a2->val(), da1, [](double a, double b){ 
-        return 2 * (a - b);
-    });
+    for_each_el(a1->val(), a2->val(), da1,
+                [](double a, double b) { return 2 * (a - b); });
   });
 
   a2->bawd_fun->set_fun([a1, a2](Matrix *da2) {
-    Funcs::for_each_el(a1->val(), a2->val(), da2, [](double a, double b){ 
-        return 2 * (b - a);
-    });
+    for_each_el(a1->val(), a2->val(), da2,
+                [](double a, double b) { return 2 * (b - a); });
   });
-
 
   return res;
 }
@@ -543,7 +508,7 @@ static Block *BCE(Block *a1, Block *a2) {
   auto *res = new Block({a1, a2}, a1->val().rows, a1->val().cols);
 
   res->set_fun([a1, a2](Matrix *out) {
-    Funcs::for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t) {
+    for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t) {
       double epsilon = 1e-12; // small value to avoid log(0)
       double p = std::min(std::max(y_p, epsilon), 1.0 - epsilon);
       return -(y_t * std::log(p) + (1.0 - y_t) * std::log(1.0 - p));
@@ -551,7 +516,7 @@ static Block *BCE(Block *a1, Block *a2) {
   });
 
   a1->bawd_fun->set_fun([a1, a2](Matrix *out) {
-    Funcs::for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t) {
+    for_each_el(a1->val(), a2->val(), out, [](double y_p, double y_t) {
       double epsilon = 1e-12;
       double p = std::min(std::max(y_p, epsilon), 1.0 - epsilon);
       return -(y_t / p) + ((1.0 - y_t) / (1.0 - p));
