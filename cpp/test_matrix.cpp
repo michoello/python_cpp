@@ -130,7 +130,6 @@ template <typename T> bool approxEqual(T a, T b, double tol = 1e-3) {
   }
 }
 
-//template <typename T>
 bool assertEqualVectors(const std::vector<std::vector<double>> &got,
                         const std::vector<std::vector<double>> &expected,
                         int round = 3) {
@@ -183,6 +182,19 @@ bool assertEqualVectors(const std::vector<std::vector<double>> &got,
   }
   return true;
 }
+
+bool assertEqualVectors(const Matrix &got,
+                        const std::vector<std::vector<double>> &expected,
+                        int round = 3) {
+    return assertEqualVectors(value(got), expected, round);
+}
+
+
+bool assertEqualVectors(const Matrix &got, const Matrix &expected, int round = 3) {
+    return assertEqualVectors(value(got), value(expected), round);
+}
+
+
 
 TEST_CASE(matmul) {
   Mod3l m;

@@ -18,7 +18,6 @@ PYBIND11_MODULE(_listinvert, m) {
         .def(py::init<int,int>(), py::arg("rows"), py::arg("cols"))
         .def(py::init<const Matrix&>(), py::arg("other"))
         .def("set_data", &Matrix::set_data)
-        .def("fill_uniform", &Matrix::fill_uniform)
         .def("at", (double& (Matrix::*)(int,int)) &Matrix::at,
              py::return_value_policy::reference_internal,
              py::arg("row"), py::arg("col"),
