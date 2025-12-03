@@ -212,8 +212,6 @@ TEST_CASE(matmul) {
                                            {4, 5, 6},
                                        }));
 
-  dc->calc_fval();
-
   CHECK(assertEqualVectors(dc->fval(), {
                                            {38, 44, 50, 56},
                                            {83, 98, 113, 128},
@@ -234,8 +232,6 @@ TEST_CASE(reshape) {
     {9, 10, 11, 12}
   }));
 
-  dc->calc_fval();
- 
   CHECK(assertEqualVectors(dc->fval(), {
   	{ 1, 2 },
 	  { 3, 4 },
@@ -259,13 +255,10 @@ TEST_CASE(matmul_with_grads) {
 
   Block *dc = MatMul(da, db);
 
-  dc->calc_fval();
   CHECK(assertEqualVectors(dc->fval(), {
                                            {15, 18, 21},
                                        }));
 
-  da->calc_bval();
-  db->calc_bval();
   CHECK(assertEqualVectors(db->bval(), {{1, 1, 1}, {2, 2, 2}}));
 
   CHECK(assertEqualVectors(da->bval(), {{12, 21}}));
@@ -282,7 +275,6 @@ TEST_CASE(sqrt_matrix) {
 
   m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
 
-  dc2->calc_fval();
   CHECK(assertEqualVectors(dc2->fval(), {
                                             {1, 16, 81},
                                             {256, 625, 1296},
@@ -309,7 +301,6 @@ TEST_CASE(add_matrix) {
 
   Block *ds2 = Add(Add(da, db), dc);
 
-  ds2->calc_fval();
   CHECK(assertEqualVectors(ds2->fval(), {
                                             {6, 8, 10},
                                             {7, 9, 11},
@@ -318,15 +309,12 @@ TEST_CASE(add_matrix) {
   Block* dsig = Sigmoid(ds2);
   Block *dl = BCE(dsig, dy);
 
-  dl->calc_fval();
   CHECK(assertEqualVectors(dl->fval(), {
 		{ 5.402, 5.600, 3 },
 		{ 0.071, 4.500, 10.989 }
   }));
 
   // Calc derivatives
-  da->calc_bval();
-
   CHECK(assertEqualVectors(dsig->bval(), {
 		{ 363.886, 2087.070, 6607.540 },
 		{ 9.985, 4051.542, 59815.266 },
@@ -341,14 +329,7 @@ TEST_CASE(add_matrix) {
 
   CHECK(assertEqualVectors(da->bval(), ds2->bval()));
 
-  // Db is not yet calculated
-  CHECK(assertEqualVectors(db->bval(), {
-		{ 1, 1, 1},
-		{ 1, 1, 1},
-                                       }));
-  db->calc_bval();
-  dc->calc_bval();
-  // Now it is calculated
+  // Now check that grads are the same
   CHECK(assertEqualVectors(db->bval(), ds2->bval()));
   CHECK(assertEqualVectors(dc->bval(), ds2->bval()));
 }
@@ -364,7 +345,6 @@ TEST_CASE(dif_matrix) {
 
   Block *dd = Dif(db, da); // db - da
 
-  dd->calc_fval();
   CHECK(assertEqualVectors(dd->fval(), {
                                            {1, 1, 2},
                                            {4, 8, 15},
@@ -379,8 +359,6 @@ TEST_CASE(mul_el) {
 
   Block *db = MulEl(da, 2);
   Block *dc = MulEl(db, -1);
-
-  dc->calc_fval();
 
   CHECK(assertEqualVectors(db->fval(), {
                                            {2, 4, 6},
@@ -400,12 +378,10 @@ TEST_CASE(sum_mat) {
 
   Block *ds = Sum(da);
 
-  ds->calc_fval();
   CHECK(assertEqualVectors(ds->fval(), {
                                            {21},
                                        }));
 
-  da->calc_bval();
   CHECK(assertEqualVectors(da->bval(), {
                                            {1, 1, 1},
                                            {1, 1, 1},
@@ -422,8 +398,6 @@ TEST_CASE(sse) {
 
   Block *ds = SSE(da, db);
 
-  ds->calc_fval();
-
   CHECK(assertEqualVectors(ds->fval(), {
                                            {5},
                                        }));
@@ -437,19 +411,8 @@ TEST_CASE(sse) {
 
   Block *ds1 = SSE(da1, db1);
 
-  // TODO: throw an exception? Calculate automatically?
-  CHECK(assertEqualVectors(ds1->fval(), { {1}, }));
-
-  ds1->calc_fval();
   CHECK(assertEqualVectors(ds1->fval(), { {9}, }));
 
-  // bvals before calc_bval
-  CHECK(assertEqualVectors(ds1->bval(), { {1}, }));
-  CHECK(assertEqualVectors(da1->bval(), { {1}, }));
-
-  // after
-  da1->calc_bval();
-  db1->calc_bval();
   CHECK(assertEqualVectors(ds1->bval(), { {1}, }));
   CHECK(assertEqualVectors(da1->bval(), { {-6}, }));
   CHECK(assertEqualVectors(db1->bval(), { {6}, }));
@@ -468,12 +431,7 @@ TEST_CASE(sse_with_grads) {
 
   Block *ds = SSE(dy, dl);
 
-  ds->calc_fval();
-
   CHECK(assertEqualVectors(ds->fval(), {{5}}));
-
-  // Calc derivatives
-  dy->calc_bval();
 
   // Derivative of loss function is its value is 1.0 (aka df/df)
   CHECK(assertEqualVectors(ds->bval(), {
@@ -490,7 +448,6 @@ TEST_CASE(sse_with_grads) {
                                        }));
 
   // Calc loss again
-  ds->calc_fval();
   CHECK(assertEqualVectors(ds->fval(), {
                                            {3.2},
                                        }));
@@ -509,11 +466,8 @@ TEST_CASE(sigmoid_with_grads) {
 
   Block *sb = Sigmoid(mm);
 
-  sb->calc_fval();
-
   CHECK(assertEqualVectors(sb->fval(), {{0.527, 0.478, 0.468}}));
 
-  mm->calc_bval();
   // TODO: add bce loss and check
   // see test_bce_loss in python tests
   CHECK(assertEqualVectors(mm->bval(), {{0.2492, 0.2495, 0.2489}}));
@@ -531,10 +485,8 @@ TEST_CASE(sigmoid_with_gradas) {
   Block *mm = MatMul(x, w);
   Block *sb = Sigmoid(mm);
 
-  sb->calc_fval();
   CHECK(assertEqualVectors(sb->fval(), {{0.527, 0.478, 0.468}}));
 
-  mm->calc_bval();
   // TODO: add bce loss and check
   // see test_bce_loss in python tests
   CHECK(assertEqualVectors(mm->bval(), {{0.2492, 0.2495, 0.2489}}));
@@ -551,7 +503,6 @@ TEST_CASE(bce_values) {
   auto check_values = [&](double yp, double yt, double expected) {
     m.set_data(ypred, {{yp}});
     m.set_data(ytrue, {{yt}});
-    bce->calc_fval();
     CHECK(assertEqualVectors(bce->fval(), {{expected}}));
   };
 
@@ -584,10 +535,7 @@ TEST_CASE(bce_with_grads) {
 
   Block *bce = BCE(ypred, ytrue);
 
-  bce->calc_fval();
   CHECK(assertEqualVectors(bce->fval(), {{0.749, 0.738, 0.691}}));
-
-  ypred->calc_bval();
   CHECK(assertEqualVectors(ypred->bval(), {{2.11416, -2.09205, 0}}));
 }
 
@@ -601,10 +549,7 @@ TEST_CASE(bce_with_gradas) {
 
   Block *bce = BCE(ypred, ytrue);
 
-  bce->calc_fval();
   CHECK(assertEqualVectors(bce->fval(), {{0.749, 0.738, 0.691}}));
-
-  ypred->calc_bval();
   CHECK(assertEqualVectors(ypred->bval(), {{2.11416, -2.09205, 0}}));
 }
 
@@ -626,14 +571,10 @@ TEST_CASE(full_layer_with_loss_with_grads) {
   Block *bce = BCE(sb, y);
 
   // Forward
-  bce->calc_fval();
   CHECK(assertEqualVectors(sb->fval(), {{0.527, 0.478, 0.468}}));
   CHECK(assertEqualVectors(bce->fval(), {{0.75, 0.739, 0.691}}));
 
   // Calc diff and check the loss values
-  w->calc_bval();
-  x->calc_bval();
-
   // Derivative of loss against itself is ones
   CHECK(assertEqualVectors(bce->bval(), {{1, 1, 1}}));
 
@@ -658,16 +599,14 @@ TEST_CASE(full_layer_with_loss_with_grads) {
                            {{-0.153, 0.552, 0.3}, {-0.495, 0.596, 0.8}}));
 
   // Recalculate the loss
-  bce->calc_fval();
   // Assure it got smaller!
   CHECK(assertEqualVectors(sb->fval(), {{0.521, 0.484, 0.468}}));
   CHECK(assertEqualVectors(bce->fval(), {{0.736, 0.726, 0.691}}));
 
   // Update the inputs, and check that it also reduces the loss
   x->apply_bval(0.01);
-  CHECK(assertEqualVectors(x->fval(), {{0.103, -0.193}}));
+  CHECK(assertEqualVectors(x->fval(), {{0.104, -0.194}}));
 
-  bce->calc_fval();
   CHECK(assertEqualVectors(bce->fval(), {{0.734, 0.723, 0.691}}));
 }
 
@@ -774,12 +713,9 @@ TEST_CASE(convolutions) {
   m.set_data(dkernel, value(kernel));
 
   Block *dc = Convolution(dinput, dkernel);
-  dc->calc_fval();
 
   CHECK(assertEqualVectors(dc->fval(), value(result)));
 }
-
-
 
 
 int main(int argc, char **argv) { return run_tests(argc, argv); }

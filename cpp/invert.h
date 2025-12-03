@@ -77,13 +77,8 @@ void multiply_matrix(const T &a, const U &b, V *c) {
   }
 }
 
-using Matrices = std::vector<Matrix>;
-
 struct LazyFunc {
-  std::vector<LazyFunc *> args;
-  Matrices arg_mats;
   Matrix mtx;
-  //std::function<void(const Matrices&, Matrix *)> fun = [](const Matrices&, Matrix *) {};
   std::function<void(Matrix *)> fun = [](Matrix *) {};
 
   Matrix &val() { return mtx; }
@@ -91,15 +86,10 @@ struct LazyFunc {
 
   template <typename F> void set_fun(F &&f) { fun = std::forward<F>(f); }
 
-  LazyFunc(const std::vector<LazyFunc *> &argz, int r, int c)
-      : args(argz), mtx(r, c, 1.0) {
+  LazyFunc(int r, int c) : mtx(r, c, 1.0) {
   }
 
   void calc() {
-    for (auto *arg : args) {
-      arg->calc();
-    }
-    //fun(arg_mats, &mtx);
     fun(&mtx);
   }
 };
@@ -115,26 +105,26 @@ struct Block {
   LazyFunc *bawd_fun = nullptr;
 
   const Matrix& fval() const {
-    //fowd_fun->calc();
+    // TODO: "smart caching" in model
+    fowd_fun->calc();
     return fowd_fun->val();
   }
   Matrix& fval() {
-    //fowd_fun->calc();
+    fowd_fun->calc();
     return fowd_fun->val();
   }
 
   const Matrix& bval() const {
-    //bawd_fun->calc();
+    bawd_fun->calc();
     return bawd_fun->val();
   }
   Matrix& bval() {
-    //bawd_fun->calc();
+    bawd_fun->calc();
     return bawd_fun->val();
   }
 
   template <typename F> void set_fowd_fun(F &&f) { fowd_fun->set_fun(f); }
   template <typename F> void set_bawd_fun(F &&f) { bawd_fun->set_fun(f); }
-
 
   // -------
   Block(const std::vector<Block *> &argz, int r, int c);
@@ -147,8 +137,6 @@ struct Block {
     }
   }
 
-  void calc_fval() { fowd_fun->calc(); }
-  void calc_bval() { bawd_fun->calc(); }
   void apply_bval(float learning_rate) {
     Matrix &val = fval();
     Matrix &grads = bval();
