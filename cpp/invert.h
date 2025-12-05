@@ -31,12 +31,13 @@ struct Matrix {
   Matrix(const Matrix &other) = default;
 
   void set_data(const std::vector<std::vector<double>> &vals) {
+    size_t i = 0;
     for (size_t r = 0; r < vals.size(); ++r) {
       if ((int)vals[r].size() != cols)
         throw std::invalid_argument(
             "All rows must have the same number of columns");
       for (int c = 0; c < cols; ++c) {
-        at(r, c) = vals[r][c];
+        (*data)[i++] = vals[r][c];
       }
     }
   }
@@ -80,17 +81,22 @@ void multiply_matrix(const T &a, const U &b, V *c) {
 struct LazyFunc {
   Matrix mtx;
   std::function<void(Matrix *)> fun = [](Matrix *) {};
+  bool is_calculated;
 
   Matrix &val() { return mtx; }
   const Matrix &val() const { return mtx; }
 
-  template <typename F> void set_fun(F &&f) { fun = std::forward<F>(f); }
-
-  LazyFunc(int r, int c) : mtx(r, c, 1.0) {
+  template <typename F> void set_fun(F &&f) { 
+     fun = std::forward<F>(f); 
+     is_calculated = false;
   }
 
+  LazyFunc(int r, int c) : mtx(r, c, 1.0) { }
+
   void calc() {
+    if(is_calculated) return;
     fun(&mtx);
+    is_calculated = true;
   }
 };
 
@@ -137,15 +143,16 @@ struct Block {
     }
   }
 
-  void apply_bval(float learning_rate) {
-    Matrix &val = fval();
-    Matrix &grads = bval();
-    for (int i = 0; i < val.rows; i++) {
-      for (int j = 0; j < val.cols; j++) {
-        val.at(i, j) -= grads.at(i, j) * learning_rate;
-      }
-    }
-  }
+  void reset_both_lazy_funcs() {
+     if(fowd_fun != nullptr) {
+        fowd_fun->is_calculated = false;
+     }
+     if(bawd_fun != nullptr) {
+        bawd_fun->is_calculated = false;
+     }
+	}
+
+  void apply_bval(float learning_rate);
 };
 
 struct Mod3l {
@@ -167,15 +174,14 @@ public:
     }
   }
 
-
-  bool& is_calculated(Block* block) {
-     return blocks[block];
-	}
-
   void set_data(Block *block, const std::vector<std::vector<double>> &vals) {
     block->fval().set_data(vals);
+    reset_all_lazy_funcs();
+  }
+
+  void reset_all_lazy_funcs() {
     for(auto& [block, calculated]: blocks) {
-       calculated = false;
+       block->reset_both_lazy_funcs();
     } 
   }
 };
@@ -203,9 +209,8 @@ static Block *MatMul(Block *inputs, Block *weights) {
   const Matrix &w = weights->fval();
   Block *res = new Block({inputs, weights}, in.rows, w.cols);
 
-
   res->set_fowd_fun([=](Matrix *out) {
-    auto [in, w] = std::pair(inputs->fval(), weights->fval());
+    auto [in, w] = std::tuple(inputs->fval(), weights->fval());
     multiply_matrix(in,   // m, n
                     w,    // n, k
                     out); // m, k
@@ -226,6 +231,7 @@ static Block *MatMul(Block *inputs, Block *weights) {
                     dout,               // m, k
                     dweights);          // n, k
   });
+
 
   return res;
 }
@@ -363,6 +369,7 @@ static double sigmoid_derivative(double x) {
 
 static double tbd(double) { return 0; }
 
+
 template <typename F> 
 static void for_each_el(const Matrix &in, F fu) {
   for (size_t i = 0; i < in.data->size(); ++i) {
@@ -406,12 +413,14 @@ static Block *Reshape(Block *a, int rows, int cols) {
   return res;
 }
 
+
 template <typename F1, typename F2>
-// static Block *ElFun(Block *a, DifFu1 fwd, DifFu1 bwd) {
 static Block *ElFun(Block *a, F1 fwd, F2 bwd) {
   Block *res = new Block({a}, a->fval().rows, a->fval().cols);
 
-  res->set_fowd_fun([=](Matrix *out) { for_each_el(a->fval(), out, fwd); });
+  res->set_fowd_fun([=](Matrix *out) { 
+     for_each_el(a->fval(), out, fwd); 
+  });
     
   const Matrix& grads = res->bval();
 

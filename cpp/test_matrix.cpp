@@ -334,6 +334,52 @@ TEST_CASE(add_matrix) {
   CHECK(assertEqualVectors(dc->bval(), ds2->bval()));
 }
 
+
+TEST_CASE(func_laziness) {
+  Mod3l m;
+  Block *da = Data(&m, 2, 3);
+  Block *db = Data(&m, 2, 3);
+
+  m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
+  m.set_data(db, {{4, 5, 6}, {1, 2, 3}});
+
+  Block *ds = Add(da, db);
+
+  // wrap sum function into another one with call counter
+  auto old_fu = ds->fowd_fun->fun;
+  int counter = 0;
+  ds->set_fowd_fun([&](Matrix *out) {
+    counter++;
+    old_fu(out);
+  });
+
+  CHECK(assertEqualVectors(ds->fval(), {
+                                            {5, 7, 9},
+                                            {5, 7, 9},
+                                        }));
+  CHECK(counter == 1);
+
+  // get the value again
+  CHECK(assertEqualVectors(ds->fval(), {
+                                            {5, 7, 9},
+                                            {5, 7, 9},
+                                        }));
+  // make sure counter has not changed
+  CHECK(counter == 1);
+
+  // set the same data, but the model is not smart enough, it resets everythign anyway
+  m.set_data(da, {{1, 2, 3}, {4, 5, 6}});
+
+  CHECK(assertEqualVectors(ds->fval(), {
+                                            {5, 7, 9},
+                                            {5, 7, 9},
+                                        }));
+  // now the counter has been incremented
+  CHECK(counter == 2);
+}
+
+
+
 TEST_CASE(dif_matrix) {
 
   Mod3l m;
