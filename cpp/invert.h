@@ -13,6 +13,7 @@
 #include <memory>
 #include <random>
 #include <vector>
+#include <unordered_set>
 
 std::vector<int> invert(const std::vector<int> &v);
 
@@ -105,13 +106,10 @@ struct Mod3l;
 struct Block {
   Mod3l *model = nullptr;
 
-  // TODO: why are they pointers?
   mutable LazyFunc fowd_fun;
-  // Backward for gradient propagation
   mutable LazyFunc bawd_fun;
 
   const Matrix& fval() const {
-    // TODO: "smart caching" in model
     fowd_fun.calc();
     return fowd_fun.val();
   }
@@ -134,18 +132,10 @@ struct Block {
 
   // -------
   Block(const std::vector<Block *> &argz, int r, int c);
-  ~Block() {
-  /*  if (fowd_fun != nullptr) {
-      delete fowd_fun;
-    }
-    if (bawd_fun != nullptr) {
-      delete bawd_fun;
-    }*/
-  }
 
   void reset_both_lazy_funcs() {
-        fowd_fun.is_calculated = false;
-        bawd_fun.is_calculated = false;
+     fowd_fun.is_calculated = false;
+     bawd_fun.is_calculated = false;
 	}
 
   void apply_bval(float learning_rate);
@@ -153,19 +143,19 @@ struct Block {
 
 struct Mod3l {
 private:
-  std::unordered_map<Block *, bool> blocks;
+  std::unordered_set<Block *> blocks;
 
 public:
   Mod3l() {}
 
   Block* add(Block *block) {
-    blocks.insert({block, false});
+    blocks.insert(block);
     block->model = this;
     return block;
   }
 
   ~Mod3l() {
-    for (auto &[block, _] : blocks) {
+    for (auto &block: blocks) {
       delete block;
     }
   }
@@ -176,7 +166,7 @@ public:
   }
 
   void reset_all_lazy_funcs() {
-    for(auto& [block, calculated]: blocks) {
+    for(auto& block: blocks) {
        block->reset_both_lazy_funcs();
     } 
   }
@@ -227,7 +217,6 @@ static Block *MatMul(Block *inputs, Block *weights) {
                     dout,               // m, k
                     dweights);          // n, k
   });
-
 
   return res;
 }
