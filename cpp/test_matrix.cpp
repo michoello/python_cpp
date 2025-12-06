@@ -314,6 +314,12 @@ TEST_CASE(add_matrix) {
 		{ 0.071, 4.500, 10.989 }
   }));
 
+  // Backend gradient is always ones
+  CHECK(assertEqualVectors(dl->bval(), {
+		{ 1, 1, 1},
+		{ 1, 1, 1}
+  }));
+
   // Calc derivatives
   CHECK(assertEqualVectors(dsig->bval(), {
 		{ 363.886, 2087.070, 6607.540 },
@@ -658,41 +664,40 @@ TEST_CASE(full_layer_with_loss_with_grads) {
 TEST_CASE(grad_fork) {
 
   Mod3l m;
-  Block *da = Data(&m, 2, 3);
-  Block *db = Data(&m, 2, 3);
-  Block *dc = Data(&m, 2, 3);
+  Block *da = Data(&m, 1, 3);
+  Block *db = Data(&m, 1, 3);
+  Block *dc = Data(&m, 1, 3);
 
-  m.set_data(da, {{1, 1, 1}, {1, 1, 1}});
-  m.set_data(db, {{2, 2, 2}, {2, 2, 2}});
-  m.set_data(dc, {{3, 3, 3}, {3, 3, 3}});
+  m.set_data(da, {{1, 1, 1}});
+  m.set_data(db, {{2, 2, 2}});
+  m.set_data(dc, {{3, 3, 3}});
 
   Block *ds1 = Add(da, db); // 1 + 2 = 3
   Block *ds2 = Add(dc, db); // 3 + 2 = 5
 
-
   Block *ds = Add(ds1, ds2);  // 3 + 5 = 8 
 
+  // TODO: method? or make it a wrapper funcs instead of vecs?
+  CHECK(ds->bawd_funs.size() == 0);
+  CHECK(ds1->bawd_funs.size() == 1);
+  CHECK(da->bawd_funs.size() == 1);
+  CHECK(db->bawd_funs.size() == 2);
+  CHECK(dc->bawd_funs.size() == 1);
 
-  CHECK(assertEqualVectors(ds->fval(), {
-                                           {8, 8, 8},
-                                           {8, 8, 8},
-                                       }));
-  CHECK(assertEqualVectors(ds->bval(), {
-                                           {1, 1, 1},
-                                           {1, 1, 1},
-                                       }));
-  CHECK(assertEqualVectors(ds1->bval(), {
-                                           {1, 1, 1},
-                                           {1, 1, 1},
-                                       }));
-  CHECK(assertEqualVectors(da->bval(), {
-                                           {1, 1, 1},
-                                           {1, 1, 1},
-                                       }));
-  CHECK(assertEqualVectors(db->bval(), {
-                                           {1, 1, 1},
-                                           {1, 1, 1},
-                                       }));
+  CHECK(assertEqualVectors(ds->fval(), { {8, 8, 8} }));
+  CHECK(assertEqualVectors(ds->bval(), { {1, 1, 1} }));
+  CHECK(assertEqualVectors(ds1->bval(), { {1, 1, 1} }));
+  CHECK(assertEqualVectors(da->bval(), { {1, 1, 1} }));
+  CHECK(assertEqualVectors(db->bval(0), { {1, 1, 1} }));
+  CHECK(assertEqualVectors(db->bval(1), { {1, 1, 1} }));
+  CHECK(assertEqualVectors(dc->bval(0), { {1, 1, 1} }));
+
+  da->apply_bval(0.1);
+  db->apply_bval(0.1);
+  dc->apply_bval(0.1);
+  CHECK(assertEqualVectors(da->fval(), { {0.9, 0.9, 0.9} })); // 1 - 1 * 0.1 (one grad)
+  CHECK(assertEqualVectors(db->fval(), { {1.8, 1.8, 1.8} })); // 2 - (1 + 1) * 0.1 (two grads)
+  CHECK(assertEqualVectors(dc->fval(), { {2.9, 2.9, 2.9} })); // 3 - 1 * 0.1
 }
 
 

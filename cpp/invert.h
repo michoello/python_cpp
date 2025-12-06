@@ -107,7 +107,7 @@ struct Block {
   Mod3l *model = nullptr;
 
   mutable LazyFunc fowd_fun;
-  mutable LazyFunc bawd_fun;
+  mutable std::vector<LazyFunc> bawd_funs;
 
   const Matrix& fval() const {
     fowd_fun.calc();
@@ -118,24 +118,38 @@ struct Block {
     return fowd_fun.val();
   }
 
-  const Matrix& bval() const {
-    bawd_fun.calc();
-    return bawd_fun.val();
+  const Matrix& bval(size_t idx = 0) const {
+    // ugly.. think about better
+    if (bawd_funs.empty()) {
+       return default_grads;
+    }
+    bawd_funs[idx].calc();
+    return bawd_funs[idx].val();
   }
-  Matrix& bval() {
-    bawd_fun.calc();
-    return bawd_fun.val();
+  Matrix& bval(size_t idx = 0) {
+    if (bawd_funs.empty()) {
+       return default_grads;
+    }
+    bawd_funs[idx].calc();
+    return bawd_funs[idx].val();
   }
 
   template <typename F> void set_fowd_fun(F &&f) { fowd_fun.set_fun(f); }
-  template <typename F> void add_bawd_fun(F &&f) { bawd_fun.set_fun(f); }
+  template <typename F> void add_bawd_fun(F &&f) { 
+      LazyFunc bawd_fun(fowd_fun.mtx.rows, fowd_fun.mtx.cols);
+      bawd_fun.set_fun(f); 
+      bawd_funs.push_back(bawd_fun);
+  }
 
   // -------
+  Matrix default_grads;
   Block(const std::vector<Block *> &argz, int r, int c);
 
   void reset_both_lazy_funcs() {
      fowd_fun.is_calculated = false;
-     bawd_fun.is_calculated = false;
+     for(auto& bawd_fun: bawd_funs) {
+        bawd_fun.is_calculated = false;
+     }
 	}
 
   void apply_bval(float learning_rate);
@@ -400,21 +414,19 @@ static Block *Reshape(Block *a, int rows, int cols) {
 
 
 template <typename F1, typename F2>
-static Block *ElFun(Block *a, F1 fwd, F2 bwd) {
-  Block *res = new Block({a}, a->fval().rows, a->fval().cols);
+static Block *ElFun(Block *arg, F1 fwd, F2 bwd) {
+  Block *block = new Block({arg}, arg->fval().rows, arg->fval().cols);
 
-  res->set_fowd_fun([=](Matrix *out) { 
-     for_each_el(a->fval(), out, fwd); 
+  block->set_fowd_fun([=](Matrix *out) { 
+     for_each_el(arg->fval(), out, fwd); 
   });
     
-  const Matrix& grads = res->bval();
-
-  a->add_bawd_fun([a, grads, bwd](Matrix *out) {
-    for_each_el(a->fval(), grads, out,
+  arg->add_bawd_fun([=](Matrix *out) {
+    for_each_el(arg->fval(), block->bval(), out,
                 [bwd](double in, double grad) { return bwd(in) * grad; });
   });
 
-  return res;
+  return block;
 }
 
 static Block *Sqrt(Block *a) { return ElFun(a, &square, &tbd); }
