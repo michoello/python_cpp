@@ -106,50 +106,46 @@ struct Block {
   Mod3l *model = nullptr;
 
   // TODO: why are they pointers?
-  LazyFunc *fowd_fun = nullptr;
+  mutable LazyFunc fowd_fun;
   // Backward for gradient propagation
-  LazyFunc *bawd_fun = nullptr;
+  mutable LazyFunc bawd_fun;
 
   const Matrix& fval() const {
     // TODO: "smart caching" in model
-    fowd_fun->calc();
-    return fowd_fun->val();
+    fowd_fun.calc();
+    return fowd_fun.val();
   }
   Matrix& fval() {
-    fowd_fun->calc();
-    return fowd_fun->val();
+    fowd_fun.calc();
+    return fowd_fun.val();
   }
 
   const Matrix& bval() const {
-    bawd_fun->calc();
-    return bawd_fun->val();
+    bawd_fun.calc();
+    return bawd_fun.val();
   }
   Matrix& bval() {
-    bawd_fun->calc();
-    return bawd_fun->val();
+    bawd_fun.calc();
+    return bawd_fun.val();
   }
 
-  template <typename F> void set_fowd_fun(F &&f) { fowd_fun->set_fun(f); }
-  template <typename F> void set_bawd_fun(F &&f) { bawd_fun->set_fun(f); }
+  template <typename F> void set_fowd_fun(F &&f) { fowd_fun.set_fun(f); }
+  template <typename F> void add_bawd_fun(F &&f) { bawd_fun.set_fun(f); }
 
   // -------
   Block(const std::vector<Block *> &argz, int r, int c);
   ~Block() {
-    if (fowd_fun != nullptr) {
+  /*  if (fowd_fun != nullptr) {
       delete fowd_fun;
     }
     if (bawd_fun != nullptr) {
       delete bawd_fun;
-    }
+    }*/
   }
 
   void reset_both_lazy_funcs() {
-     if(fowd_fun != nullptr) {
-        fowd_fun->is_calculated = false;
-     }
-     if(bawd_fun != nullptr) {
-        bawd_fun->is_calculated = false;
-     }
+        fowd_fun.is_calculated = false;
+        bawd_fun.is_calculated = false;
 	}
 
   void apply_bval(float learning_rate);
@@ -216,7 +212,7 @@ static Block *MatMul(Block *inputs, Block *weights) {
                     out); // m, k
   });
 
-  inputs->set_bawd_fun([=](Matrix *dinputs) {
+  inputs->add_bawd_fun([=](Matrix *dinputs) {
     auto [in, w] = std::pair(inputs->fval(), weights->fval());
     const Matrix &dout = res->bval();
     multiply_matrix(dout,              // m, k
@@ -224,7 +220,7 @@ static Block *MatMul(Block *inputs, Block *weights) {
                     dinputs);          // m, n
   });
 
-  weights->set_bawd_fun([=](Matrix *dweights) {
+  weights->add_bawd_fun([=](Matrix *dweights) {
     auto [in, w] = std::pair(inputs->fval(), weights->fval());
     const Matrix &dout = res->bval();
     multiply_matrix(TransposedView(in), // n, m
@@ -323,7 +319,7 @@ static Block *Convolution(Block *input, Block *kernel) {
   // TODO: test everything below
   const Matrix &dout = res->bval();
 
-  input->set_bawd_fun([kernel, dout](Matrix *dinputs) {
+  input->add_bawd_fun([kernel, dout](Matrix *dinputs) {
     auto [k, l] = std::pair(kernel->fval().rows, kernel->fval().cols);
     ReshapedView dout_flat(dout, dout.rows * dout.cols, 1);
     ReshapedView kernel_flat(kernel->fval(), k * l, 1);
@@ -335,7 +331,7 @@ static Block *Convolution(Block *input, Block *kernel) {
     );
   });
 
-  kernel->set_bawd_fun([input, dout](Matrix *dkernel) {
+  kernel->add_bawd_fun([input, dout](Matrix *dkernel) {
     auto [k, l] = std::pair(dkernel->rows, dkernel->cols);
     SlidingWindowView input_slide(input->fval(), k, l);
     ReshapedView dout_flat(dout, dout.rows * dout.cols, 1);
@@ -407,7 +403,7 @@ static Block *Reshape(Block *a, int rows, int cols) {
     for_each_el(a->fval(), out, [](double a) { return a; });
   });
 
-  a->set_bawd_fun([res](Matrix *) {
+  a->add_bawd_fun([res](Matrix *) {
     // TODO
   });
   return res;
@@ -424,7 +420,7 @@ static Block *ElFun(Block *a, F1 fwd, F2 bwd) {
     
   const Matrix& grads = res->bval();
 
-  a->set_bawd_fun([a, grads, bwd](Matrix *out) {
+  a->add_bawd_fun([a, grads, bwd](Matrix *out) {
     for_each_el(a->fval(), grads, out,
                 [bwd](double in, double grad) { return bwd(in) * grad; });
   });
@@ -451,11 +447,11 @@ static Block *Add(Block *a1, Block *a2) {
                 [](double a, double b) { return a + b; });
   });
 
-  a1->set_bawd_fun([res](Matrix *out) {
+  a1->add_bawd_fun([res](Matrix *out) {
     for_each_el(res->bval(), out, [](double g) { return g; });
   });
 
-  a2->set_bawd_fun([res](Matrix *out) {
+  a2->add_bawd_fun([res](Matrix *out) {
     for_each_el(res->bval(), out, [](double g) { return g; });
   });
 
@@ -474,7 +470,7 @@ static Block *Sum(Block *a) {
     out->at(0, 0) = s;
   });
 
-  a->set_bawd_fun([a, res](Matrix *out) {
+  a->add_bawd_fun([a, res](Matrix *out) {
     double grad = res->bval().at(0, 0);
     for_each_el(a->fval(), out, [grad](double) { return grad; });
   });
@@ -492,12 +488,12 @@ static Block *SSE(Block *a1, Block *a2) {
     out->at(0, 0) = s;
   });
 
-  a1->set_bawd_fun([=](Matrix *da1) {
+  a1->add_bawd_fun([=](Matrix *da1) {
     for_each_el(a1->fval(), a2->fval(), da1,
                 [](double a, double b) { return 2 * (a - b); });
   });
 
-  a2->set_bawd_fun([=](Matrix *da2) {
+  a2->add_bawd_fun([=](Matrix *da2) {
     for_each_el(a1->fval(), a2->fval(), da2,
                 [](double a, double b) { return 2 * (b - a); });
   });
@@ -524,7 +520,7 @@ static Block *BCE(Block *a1, Block *a2) {
     });
   });
 
-  a1->set_bawd_fun([a1, a2](Matrix *out) {
+  a1->add_bawd_fun([a1, a2](Matrix *out) {
     for_each_el(a1->fval(), a2->fval(), out, [](double y_p, double y_t) {
       double p = clip(y_p); 
       return -(y_t / p) + ((1.0 - y_t) / (1.0 - p));

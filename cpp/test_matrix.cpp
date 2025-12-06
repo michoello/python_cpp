@@ -346,7 +346,7 @@ TEST_CASE(func_laziness) {
   Block *ds = Add(da, db);
 
   // wrap sum function into another one with call counter
-  auto old_fu = ds->fowd_fun->fun;
+  auto old_fu = ds->fowd_fun.fun;
   int counter = 0;
   ds->set_fowd_fun([&](Matrix *out) {
     counter++;
@@ -377,8 +377,6 @@ TEST_CASE(func_laziness) {
   // now the counter has been incremented
   CHECK(counter == 2);
 }
-
-
 
 TEST_CASE(dif_matrix) {
 
@@ -655,6 +653,49 @@ TEST_CASE(full_layer_with_loss_with_grads) {
 
   CHECK(assertEqualVectors(bce->fval(), {{0.734, 0.723, 0.691}}));
 }
+
+
+TEST_CASE(grad_fork) {
+
+  Mod3l m;
+  Block *da = Data(&m, 2, 3);
+  Block *db = Data(&m, 2, 3);
+  Block *dc = Data(&m, 2, 3);
+
+  m.set_data(da, {{1, 1, 1}, {1, 1, 1}});
+  m.set_data(db, {{2, 2, 2}, {2, 2, 2}});
+  m.set_data(dc, {{3, 3, 3}, {3, 3, 3}});
+
+  Block *ds1 = Add(da, db); // 1 + 2 = 3
+  Block *ds2 = Add(dc, db); // 3 + 2 = 5
+
+
+  Block *ds = Add(ds1, ds2);  // 3 + 5 = 8 
+
+
+  CHECK(assertEqualVectors(ds->fval(), {
+                                           {8, 8, 8},
+                                           {8, 8, 8},
+                                       }));
+  CHECK(assertEqualVectors(ds->bval(), {
+                                           {1, 1, 1},
+                                           {1, 1, 1},
+                                       }));
+  CHECK(assertEqualVectors(ds1->bval(), {
+                                           {1, 1, 1},
+                                           {1, 1, 1},
+                                       }));
+  CHECK(assertEqualVectors(da->bval(), {
+                                           {1, 1, 1},
+                                           {1, 1, 1},
+                                       }));
+  CHECK(assertEqualVectors(db->bval(), {
+                                           {1, 1, 1},
+                                           {1, 1, 1},
+                                       }));
+}
+
+
 
 TEST_CASE(matrix_views) {
   Matrix A(2, 3);
