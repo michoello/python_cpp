@@ -27,19 +27,11 @@ PYBIND11_MODULE(_listinvert, m) {
     m.def("value", &value<Matrix>, "Returns matrix value as vector of vectors");
     m.def("multiply_matrix", &multiply_matrix<Matrix, Matrix, Matrix>, "Multiplies two matrices and writes result into the third one");
 
-
-    // expose function
-    m.def("invert", [](const std::vector<int>& input) {
-        return std::vector<int>(input.rbegin(), input.rend());
-    });
-
     py::class_<Mod3l>(m, "Mod3l")
         .def(py::init<>())
         .def("set_data", &Mod3l::set_data);
 
     py::class_<Block>(m, "Block")
-        .def("calc_fval", &Block::calc_fval)
-        .def("calc_bval", &Block::calc_bval)
         .def("apply_bval", &Block::apply_bval)
         .def("fval", &Block::fval)
         .def("bval", &Block::bval);

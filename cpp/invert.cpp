@@ -1,12 +1,7 @@
-// listinvert/invert.cpp
 #include <iostream>
 #include <vector>
 
 #include "invert.h"
-
-std::vector<int> invert(const std::vector<int> &v) {
-  return std::vector<int>(v.rbegin(), v.rend());
-}
 
 Block::Block(const std::vector<Block *> &argz, int r, int c): fowd_fun(r, c), default_grads(r, c, 1.0)
 {
@@ -21,12 +16,12 @@ Block::Block(const std::vector<Block *> &argz, int r, int c): fowd_fun(r, c), de
 
 
 void Block::apply_bval(float learning_rate) {
-    Matrix &val = fval();
+    Matrix &val = fowd_fun.val();
 
     // Ugly. TODO: make it prettier
     size_t grads_count = bawd_funs.size();
     for(size_t g = 0; g < grads_count; ++g) {
-      Matrix &grads = bval(g);
+      const Matrix &grads = bval(g);
       for (int i = 0; i < val.rows; i++) {
         for (int j = 0; j < val.cols; j++) {
           val.at(i, j) -= grads.at(i, j) * learning_rate;

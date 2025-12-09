@@ -15,68 +15,7 @@
 #include <vector>
 #include <unordered_set>
 
-std::vector<int> invert(const std::vector<int> &v);
-
-class Matrix;
-
-struct Matrix {
-  int rows;
-  int cols;
-  std::shared_ptr<std::vector<double>> data; // flat row-major storage
-
-  Matrix(int r, int c, double val = 0.0)
-      : rows(r), cols(c),
-        data(std::make_shared<std::vector<double>>(r * c, val)) {}
-
-  Matrix(const Matrix &other) = default;
-
-  void set_data(const std::vector<std::vector<double>> &vals) {
-    size_t i = 0;
-    for (size_t r = 0; r < vals.size(); ++r) {
-      if ((int)vals[r].size() != cols)
-        throw std::invalid_argument(
-            "All rows must have the same number of columns");
-      for (int c = 0; c < cols; ++c) {
-        (*data)[i++] = vals[r][c];
-      }
-    }
-  }
-
-  inline double &at(int r, int c) { return (*data)[r * cols + c]; }
-  inline const double &at(int r, int c) const { return (*data)[r * cols + c]; }
-
-  // Convert bawd_fun to nested vector (Python list-of-lists)
-};
-
-// Extracts the full value of Matrix-like object(i.e. Matrix or matrix view)
-template <class M> std::vector<std::vector<double>> value(const M &m) {
-  std::vector<std::vector<double>> out(m.rows, std::vector<double>(m.cols));
-  for (int i = 0; i < m.rows; i++) {
-    for (int j = 0; j < m.cols; j++) {
-      out[i][j] = m.at(i, j);
-    }
-  }
-  return out;
-}
-
-template <class T, class U, class V>
-void multiply_matrix(const T &a, const U &b, V *c) {
-  // TODO: remove it out of here?
-  if (a.cols != b.rows || a.rows != c->rows || b.cols != c->cols) {
-    throw std::invalid_argument(
-        "Matrix dimensions do not match for multiplication");
-  }
-
-  for (int i = 0; i < a.rows; i++) {
-    for (int j = 0; j < b.cols; j++) {
-      double sum = 0.0;
-      for (int k = 0; k < a.cols; k++) {
-        sum += a.at(i, k) * b.at(k, j);
-      }
-      c->at(i, j) = sum;
-    }
-  }
-}
+#include "matrix.h"
 
 struct LazyFunc {
   Matrix mtx;
@@ -112,11 +51,13 @@ struct Block {
     fowd_fun.calc();
     return fowd_fun.val();
   }
+
+/*
   Matrix& fval() {
     fowd_fun.calc();
     return fowd_fun.val();
   }
-
+*/
   const Matrix& bval(size_t idx = 0) const {
     // ugly.. think about better
     if (bawd_funs.empty()) {
@@ -125,6 +66,7 @@ struct Block {
     bawd_funs[idx].calc();
     return bawd_funs[idx].val();
   }
+/*
   Matrix& bval(size_t idx = 0) {
     if (bawd_funs.empty()) {
        return default_grads;
@@ -132,7 +74,7 @@ struct Block {
     bawd_funs[idx].calc();
     return bawd_funs[idx].val();
   }
-
+*/
   template <typename F> void set_fowd_fun(F &&f) { fowd_fun.set_fun(f); }
   template <typename F> void add_bawd_fun(F &&f) { 
       LazyFunc bawd_fun(fowd_fun.mtx.rows, fowd_fun.mtx.cols);
@@ -142,6 +84,7 @@ struct Block {
 
   // -------
   Matrix default_grads;
+  Block() : Block({}, 1, 1) {} // temporay
   Block(const std::vector<Block *> &argz, int r, int c);
 
   void reset_both_lazy_funcs() {
@@ -174,7 +117,8 @@ public:
   }
 
   void set_data(Block *block, const std::vector<std::vector<double>> &vals) {
-    block->fval().set_data(vals);
+    //block->fval().set_data(vals);
+    block->fowd_fun.val().set_data(vals);
     reset_all_lazy_funcs();
   }
 
@@ -366,34 +310,6 @@ static double sigmoid_derivative(double x) {
 }
 
 static double tbd(double) { return 0; }
-
-template <typename F>
-static void for_each_el(const Matrix &in, F fu, Matrix *out = nullptr) {
-  using Ret = std::invoke_result_t<F, double&>;
-  if constexpr (std::is_void_v<Ret>) {
-    for (size_t i = 0; i < in.data->size(); ++i) {
-      fu((*in.data)[i]);
-    }
-  } else {
-    for (size_t i = 0; i < in.data->size(); ++i) {
-      (*out->data)[i] = fu((*in.data)[i]);
-    }
-  }
-}
-
-template <typename F>
-static void for_each_el(const Matrix &in1, const Matrix &in2, F fu, Matrix *out = nullptr) {
-  using Ret = std::invoke_result_t<F, double&, double&>;
-  if constexpr (std::is_void_v<Ret>) {
-    for (size_t i = 0; i < in1.data->size(); ++i) {
-      fu((*in1.data)[i], (*in2.data)[i]);
-    }
-  } else {
-    for (size_t i = 0; i < in1.data->size(); ++i) {
-      (*out->data)[i] = fu((*in1.data)[i], (*in2.data)[i]);
-    }
-  }
-}
 
 
 static Block *Reshape(Block *a, int rows, int cols) {
