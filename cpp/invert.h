@@ -18,7 +18,6 @@
 std::vector<int> invert(const std::vector<int> &v);
 
 class Matrix;
-// class Funcs;
 
 struct Matrix {
   int rows;
@@ -368,34 +367,31 @@ static double sigmoid_derivative(double x) {
 
 static double tbd(double) { return 0; }
 
-
-template <typename F> 
-static void for_each_el(const Matrix &in, F fu) {
-  for (size_t i = 0; i < in.data->size(); ++i) {
-    fu((*in.data)[i]);
+template <typename F>
+static void for_each_el(const Matrix &in, F fu, Matrix *out = nullptr) {
+  using Ret = std::invoke_result_t<F, double&>;
+  if constexpr (std::is_void_v<Ret>) {
+    for (size_t i = 0; i < in.data->size(); ++i) {
+      fu((*in.data)[i]);
+    }
+  } else {
+    for (size_t i = 0; i < in.data->size(); ++i) {
+      (*out->data)[i] = fu((*in.data)[i]);
+    }
   }
 }
 
 template <typename F>
-static void for_each_el(const Matrix &in, Matrix *out, F fu) {
-  for (size_t i = 0; i < in.data->size(); ++i) {
-    (*out->data)[i] = fu((*in.data)[i]);
-  }
-}
-
-
-template <typename F>
-static void for_each_el(const Matrix &in1, const Matrix &in2, F fu) {
-  for (size_t i = 0; i < in1.data->size(); ++i) {
-    fu((*in1.data)[i], (*in2.data)[i]);
-  }
-}
-
-template <typename F>
-static void for_each_el(const Matrix &in1, const Matrix &in2, Matrix *out,
-                        F fu) {
-  for (size_t i = 0; i < in1.data->size(); ++i) {
-    (*out->data)[i] = fu((*in1.data)[i], (*in2.data)[i]);
+static void for_each_el(const Matrix &in1, const Matrix &in2, F fu, Matrix *out = nullptr) {
+  using Ret = std::invoke_result_t<F, double&, double&>;
+  if constexpr (std::is_void_v<Ret>) {
+    for (size_t i = 0; i < in1.data->size(); ++i) {
+      fu((*in1.data)[i], (*in2.data)[i]);
+    }
+  } else {
+    for (size_t i = 0; i < in1.data->size(); ++i) {
+      (*out->data)[i] = fu((*in1.data)[i], (*in2.data)[i]);
+    }
   }
 }
 
@@ -403,7 +399,7 @@ static void for_each_el(const Matrix &in1, const Matrix &in2, Matrix *out,
 static Block *Reshape(Block *a, int rows, int cols) {
   Block *res = new Block({a}, rows, cols);
   res->set_fowd_fun([=](Matrix *out) {
-    for_each_el(a->fval(), out, [](double a) { return a; });
+    for_each_el(a->fval(), [](double a) { return a; }, out);
   });
 
   a->add_bawd_fun([res](Matrix *) {
@@ -418,12 +414,12 @@ static Block *ElFun(Block *arg, F1 fwd, F2 bwd) {
   Block *block = new Block({arg}, arg->fval().rows, arg->fval().cols);
 
   block->set_fowd_fun([=](Matrix *out) { 
-     for_each_el(arg->fval(), out, fwd); 
+     for_each_el(arg->fval(), fwd, out); 
   });
     
   arg->add_bawd_fun([=](Matrix *out) {
-    for_each_el(arg->fval(), block->bval(), out,
-                [bwd](double in, double grad) { return bwd(in) * grad; });
+    for_each_el(arg->fval(), block->bval(),
+                [bwd](double in, double grad) { return bwd(in) * grad; }, out);
   });
 
   return block;
@@ -444,16 +440,16 @@ static Block *Add(Block *a1, Block *a2) {
   auto *res = new Block({a1, a2}, a1->fval().rows, a1->fval().cols);
 
   res->set_fowd_fun([=](Matrix *out) {
-    for_each_el(a1->fval(), a2->fval(), out,
-                [](double a, double b) { return a + b; });
+    for_each_el(a1->fval(), a2->fval(), 
+                [](double a, double b) { return a + b; }, out);
   });
 
   a1->add_bawd_fun([res](Matrix *out) {
-    for_each_el(res->bval(), out, [](double g) { return g; });
+    for_each_el(res->bval(), [](double g) { return g; }, out);
   });
 
   a2->add_bawd_fun([res](Matrix *out) {
-    for_each_el(res->bval(), out, [](double g) { return g; });
+    for_each_el(res->bval(), [](double g) { return g; }, out);
   });
 
   return res;
@@ -473,7 +469,7 @@ static Block *Sum(Block *a) {
 
   a->add_bawd_fun([a, res](Matrix *out) {
     double grad = res->bval().at(0, 0);
-    for_each_el(a->fval(), out, [grad](double) { return grad; });
+    for_each_el(a->fval(), [grad](double) { return grad; }, out);
   });
 
   return res;
@@ -490,13 +486,13 @@ static Block *SSE(Block *a1, Block *a2) {
   });
 
   a1->add_bawd_fun([=](Matrix *da1) {
-    for_each_el(a1->fval(), a2->fval(), da1,
-                [](double a, double b) { return 2 * (a - b); });
+    for_each_el(a1->fval(), a2->fval(), 
+                [](double a, double b) { return 2 * (a - b); }, da1);
   });
 
   a2->add_bawd_fun([=](Matrix *da2) {
-    for_each_el(a1->fval(), a2->fval(), da2,
-                [](double a, double b) { return 2 * (b - a); });
+    for_each_el(a1->fval(), a2->fval(), 
+                [](double a, double b) { return 2 * (b - a); }, da2);
   });
 
   return res;
@@ -515,17 +511,17 @@ static Block *BCE(Block *a1, Block *a2) {
   auto *res = new Block({a1, a2}, a1->fval().rows, a1->fval().cols);
 
   res->set_fowd_fun([=](Matrix *out) {
-    for_each_el(a1->fval(), a2->fval(), out, [](double y_p, double y_t) {
+    for_each_el(a1->fval(), a2->fval(), [](double y_p, double y_t) {
       double p = clip(y_p); 
       return -(y_t * std::log(p) + (1.0 - y_t) * std::log(1.0 - p));
-    });
+    }, out);
   });
 
   a1->add_bawd_fun([a1, a2](Matrix *out) {
-    for_each_el(a1->fval(), a2->fval(), out, [](double y_p, double y_t) {
+    for_each_el(a1->fval(), a2->fval(), [](double y_p, double y_t) {
       double p = clip(y_p); 
       return -(y_t / p) + ((1.0 - y_t) / (1.0 - p));
-    });
+    }, out);
   });
 
   return res;
