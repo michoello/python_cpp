@@ -804,10 +804,48 @@ TEST_CASE(convolutions) {
   Block *dkernel = Data(&m, 2, 2);
   m.set_data(dkernel, value(kernel));
 
-  Block *dc = Convolution(dinput, dkernel);
+  Block *dc = Convo(dinput, dkernel);
 
   CHECK(assertEqualVectors(dc->fval(), value(result)));
 }
+
+
+TEST_CASE(more_convolutions) {
+  Mod3l m;
+
+  Block *dinput = Data(&m, 3, 3);
+  m.set_data(dinput, {
+     {1, 2, 3},
+     {4, 5, 6}, 
+     {7, 8, 9}
+  });
+
+  Block *dkernel = Data(&m, 2, 2);
+  m.set_data(dkernel, {
+     { 1, 0 },
+     { 0, 0 },
+  });
+
+  Block *dc = Convo(dinput, dkernel);
+
+  // This was identity convolution
+  CHECK(assertEqualVectors(dc->fval(), dinput->fval()));
+
+  // Now "rotate to left" convolution kernel
+  m.set_data(dkernel, {
+     { 0, 1 },
+     { 0, 0 },
+  });
+
+  CHECK(assertEqualVectors(dc->fval(), {
+     {2, 3, 1},
+     {5, 6, 4}, 
+     {8, 9, 7}
+  }));
+
+  // TODO: add grads tests
+}
+
 
 
 int main(int argc, char **argv) { return run_tests(argc, argv); }

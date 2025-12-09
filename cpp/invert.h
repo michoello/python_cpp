@@ -303,7 +303,7 @@ template <class M> struct SlidingWindowView {
 
 // Circular convolution, to keep it simple
 // Output size is same as input
-static Block *Convolution(Block *input, Block *kernel) {
+static Block *Convo(Block *input, Block *kernel) {
   Block *res = new Block({input, kernel}, input->fval().rows, input->fval().cols);
   // input -> m, n
   // kernel -> k, l
