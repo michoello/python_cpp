@@ -43,11 +43,11 @@ class TestMatrixMultiply(unittest.TestCase):
         # Compare element-wise
         self.assertEqual(result, expected)
 
-        self.assertEqual(A_cpp.at(1, 1), 5)
+        self.assertEqual(A_cpp.get(1, 1), 5)
 
         # This does not work, but ok for now
-        # A_cpp.at(1, 1) = 3
-        # self.assertEqual(A_cpp.at(1, 1), 3)
+        # A_cpp.set(1, 1, 3)
+        # self.assertEqual(A_cpp.get(1, 1), 3)
 
 
 class TestMod3l(unittest.TestCase):

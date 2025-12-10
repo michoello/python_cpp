@@ -24,7 +24,8 @@ void Block::apply_bval(float learning_rate) {
       const Matrix &grads = bval(g);
       for (int i = 0; i < val.rows; i++) {
         for (int j = 0; j < val.cols; j++) {
-          val.at(i, j) -= grads.at(i, j) * learning_rate;
+          // TODO: optimize a bit
+          val.set(i, j, val.get(i, j) - grads.get(i, j) * learning_rate);
         }
       }
     }

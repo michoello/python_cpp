@@ -102,10 +102,10 @@ TEST_CASE(multiply) {
   Matrix C(2, 2);
   ::multiply_matrix(A, B, &C);
 
-  assert(C.at(0, 0) == 19);
-  assert(C.at(0, 1) == 22);
-  assert(C.at(1, 0) == 43);
-  assert(C.at(1, 1) == 50);
+  assert(C.get(0, 0) == 19);
+  assert(C.get(0, 1) == 22);
+  assert(C.get(1, 0) == 43);
+  assert(C.get(1, 1) == 50);
 }
 
 TEST_CASE(shared_data) {
@@ -114,12 +114,12 @@ TEST_CASE(shared_data) {
 
   Matrix B(A);
 
-  A.at(1, 1) = 5;
+  A.set(1, 1, 5);
 
   assert(B.rows == 2);
   assert(B.cols == 2);
-  assert(B.at(0, 0) == 1);
-  assert(B.at(1, 1) == 5);
+  assert(B.get(0, 0) == 1);
+  assert(B.get(1, 1) == 5);
 }
 
 template <typename T> bool approxEqual(T a, T b, double tol = 1e-3) {
@@ -790,9 +790,9 @@ TEST_CASE(convolutions) {
     { 2, 5, 4, -1 }
   }));
 
-  CHECK(result.at(0, 0) == input.at(0, 0) + input.at(1, 1)); // 1  = 1 + 0
-  CHECK(result.at(1, 2) == input.at(1, 2) + input.at(2, 3)); // -3 = -1 + -2
-  CHECK(result.at(2, 1) == input.at(2, 1) + input.at(0, 2)); // 5 = 2 + 3
+  CHECK(result.get(0, 0) == input.get(0, 0) + input.get(1, 1)); // 1  = 1 + 0
+  CHECK(result.get(1, 2) == input.get(1, 2) + input.get(2, 3)); // -3 = -1 + -2
+  CHECK(result.get(2, 1) == input.get(2, 1) + input.get(0, 2)); // 5 = 2 + 3
   //
   // Now in model
   Mod3l m;

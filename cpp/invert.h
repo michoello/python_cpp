@@ -52,12 +52,6 @@ struct Block {
     return fowd_fun.val();
   }
 
-/*
-  Matrix& fval() {
-    fowd_fun.calc();
-    return fowd_fun.val();
-  }
-*/
   const Matrix& bval(size_t idx = 0) const {
     // ugly.. think about better
     if (bawd_funs.empty()) {
@@ -66,15 +60,7 @@ struct Block {
     bawd_funs[idx].calc();
     return bawd_funs[idx].val();
   }
-/*
-  Matrix& bval(size_t idx = 0) {
-    if (bawd_funs.empty()) {
-       return default_grads;
-    }
-    bawd_funs[idx].calc();
-    return bawd_funs[idx].val();
-  }
-*/
+
   template <typename F> void set_fowd_fun(F &&f) { fowd_fun.set_fun(f); }
   template <typename F> void add_bawd_fun(F &&f) { 
       LazyFunc bawd_fun(fowd_fun.mtx.rows, fowd_fun.mtx.cols);
@@ -83,6 +69,7 @@ struct Block {
   }
 
   // -------
+  // TODO: Get rid of this "default"
   Matrix default_grads;
   Block() : Block({}, 1, 1) {} // temporay
   Block(const std::vector<Block *> &argz, int r, int c);
@@ -140,7 +127,7 @@ template <class M> struct TransposedView {
   int rows;
   int cols;
   TransposedView(const M &src) : src(src), rows(src.cols), cols(src.rows) {}
-  inline const double &at(int r, int c) const { return src.at(c, r); }
+  inline double get(int r, int c) const { return src.get(c, r); }
 };
 
 // This is requried to build view of a view
@@ -188,18 +175,18 @@ template <class M> struct ReshapedView {
       : src(&src), rows(rows),
         cols(cols) { /* TODO: check rows*cols=rows*cols */
   }
-  inline const double &at(int r, int c) const {
+  inline double get(int r, int c) const {
     size_t idx = r * cols + c;
     size_t src_r = idx / src->cols;
     size_t src_c = idx % src->cols;
-    return src->at(src_r, src_c);
+    return src->get(src_r, src_c);
   }
 
-  inline double &at(int r, int c) {
+  inline void set(int r, int c, double value) {
     size_t idx = r * cols + c;
     size_t src_r = idx / src->cols;
     size_t src_c = idx % src->cols;
-    return src->at(src_r, src_c);
+    src->set(src_r, src_c, value);
   }
 };
 
@@ -218,16 +205,16 @@ template <class M> struct SlidingWindowView {
     rows = src.rows * src.cols;
     cols = window_rows * window_cols;
   }
-  inline const double &at(int r, int c) const {
+  inline double get(int r, int c) const {
     auto [base_row, base_col, delta_row, delta_col] = std::tuple(
         r / src->cols, r % src->cols, c / window_cols, c % window_cols);
 
     size_t src_r = (base_row + delta_row) % src->rows;
     size_t src_c = (base_col + delta_col) % src->cols;
-    return src->at(src_r, src_c);
+    return src->get(src_r, src_c);
   }
 
-  inline double &at(int r, int c) {
+  inline void set(int r, int c, double value) {
     // TODO:
     // this is gona be a bit crazy. instead of assigning, it should calc the
     // difference between prev value and new value, and update source with that
@@ -240,7 +227,7 @@ template <class M> struct SlidingWindowView {
     size_t col = base_col + delta_col;
     row = row % src->rows;
     col = col % src->cols;
-    return src->at(row, col);
+    src->set(row, col, value);
   }
 };
 
@@ -380,11 +367,11 @@ static Block *Sum(Block *a) {
   res->set_fowd_fun([=](Matrix *out) {
     double s = 0;
     for_each_el(a->fval(), [&s](double a) { s += a; });
-    out->at(0, 0) = s;
+    out->set(0, 0, s);
   });
 
   a->add_bawd_fun([a, res](Matrix *out) {
-    double grad = res->bval().at(0, 0);
+    double grad = res->bval().get(0, 0);
     for_each_el(a->fval(), [grad](double) { return grad; }, out);
   });
 
@@ -398,7 +385,7 @@ static Block *SSE(Block *a1, Block *a2) {
     double s = 0;
     for_each_el(a1->fval(), a2->fval(),
                 [&s](double a, double b) { s += square(b - a); });
-    out->at(0, 0) = s;
+    out->set(0, 0, s);
   });
 
   a1->add_bawd_fun([=](Matrix *da1) {

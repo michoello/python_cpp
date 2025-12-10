@@ -38,8 +38,8 @@ struct Matrix {
     }
   }
 
-  inline double &at(int r, int c) { return (*data)[r * cols + c]; }
-  inline const double &at(int r, int c) const { return (*data)[r * cols + c]; }
+  inline double get(int r, int c) const { return (*data)[r * cols + c]; }
+  inline void set(int r, int c, double value) { (*data)[r * cols + c] = value; }
 
   // Convert bawd_fun to nested vector (Python list-of-lists)
 };
@@ -49,7 +49,7 @@ template <class M> std::vector<std::vector<double>> value(const M &m) {
   std::vector<std::vector<double>> out(m.rows, std::vector<double>(m.cols));
   for (int i = 0; i < m.rows; i++) {
     for (int j = 0; j < m.cols; j++) {
-      out[i][j] = m.at(i, j);
+      out[i][j] = m.get(i, j);
     }
   }
   return out;
@@ -67,9 +67,9 @@ void multiply_matrix(const T &a, const U &b, V *c) {
     for (int j = 0; j < b.cols; j++) {
       double sum = 0.0;
       for (int k = 0; k < a.cols; k++) {
-        sum += a.at(i, k) * b.at(k, j);
+        sum += a.get(i, k) * b.get(k, j);
       }
-      c->at(i, j) = sum;
+      c->set(i, j, sum);
     }
   }
 }
