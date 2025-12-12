@@ -227,7 +227,7 @@ template <class M> struct SlidingWindowView {
     size_t col = base_col + delta_col;
     row = row % src->rows;
     col = col % src->cols;
-    src->set(row, col, value);
+    src->set(row, col, src->get(row, col) + value);
   }
 };
 
@@ -243,28 +243,46 @@ static Block *Convo(Block *input, Block *kernel) {
     SlidingWindowView input_slide(input->fval(), k, l);
     ReshapedView kernel_flat(kernel->fval(), k * l, 1);
     ReshapedView out_flat(*out, out->rows * out->cols, 1);
-    //
     multiply_matrix(input_slide, // m * n, k * l
                     kernel_flat, // k * l, 1
                     &out_flat);  // m * n, 1
   });
 
   // TODO: test everything below
-  const Matrix &dout = res->bval();
 
-  input->add_bawd_fun([kernel, dout](Matrix *dinputs) {
+  input->add_bawd_fun([kernel, res](Matrix *dinputs) {
+    const Matrix &dout = res->bval();
+
     auto [k, l] = std::pair(kernel->fval().rows, kernel->fval().cols);
     ReshapedView dout_flat(dout, dout.rows * dout.cols, 1);
     ReshapedView kernel_flat(kernel->fval(), k * l, 1);
     SlidingWindowView dinput_slide(*dinputs, k, l);
     //
+    // Set dinputs to all zeros
+    for_each_el(*dinputs, [](double a) { return 0; }, dinputs);
+   /* 
+    std::cerr << "dout_flat\n";
+    print_matrix(value(dout_flat));
+
+    std::cerr << "kernelflt_transpo\n";
+    print_matrix(value(TransposedView(kernel_flat)));
+
+    std::cerr << "dinput_slide before\n";
+    print_matrix(value(dinput_slide));
+*/
     multiply_matrix(dout_flat,                   // m * n, 1
                     TransposedView(kernel_flat), // 1, k * l
                     &dinput_slide                // m * n, k * l
     );
+/*
+    std::cerr << "dinput_slide after\n";
+    print_matrix(value(dinput_slide));
+*/
+
   });
 
-  kernel->add_bawd_fun([input, dout](Matrix *dkernel) {
+  kernel->add_bawd_fun([input, res](Matrix *dkernel) {
+    const Matrix &dout = res->bval();
     auto [k, l] = std::pair(dkernel->rows, dkernel->cols);
     SlidingWindowView input_slide(input->fval(), k, l);
     ReshapedView dout_flat(dout, dout.rows * dout.cols, 1);

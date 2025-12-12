@@ -130,6 +130,8 @@ template <typename T> bool approxEqual(T a, T b, double tol = 1e-3) {
   }
 }
 
+
+
 bool assertEqualVectors(const std::vector<std::vector<double>> &got,
                         const std::vector<std::vector<double>> &expected,
                         int round = 3) {
@@ -160,22 +162,9 @@ bool assertEqualVectors(const std::vector<std::vector<double>> &got,
                   << " (tolerance " << tol << ")\n";
 
         std::cerr << "Expected:\n";
-        for (const auto &row : expected) {
-          std::cerr << "  { ";
-          for (size_t i = 0; i < row.size(); ++i) {
-            std::cerr << std::fixed << std::setprecision(round) << row[i] << (i < row.size() - 1 ? ", " : " ");
-          }
-          std::cerr << "}\n";
-        }
-
+        print_matrix(expected, round);
         std::cerr << "Got:\n";
-        for (const auto &row : got) {
-          std::cerr << "  { ";
-          for (size_t i = 0; i < row.size(); ++i) {
-            std::cerr << std::fixed << std::setprecision(round) << row[i] << (i < row.size() - 1 ? ", " : " ");
-          }
-          std::cerr << "}\n";
-        }
+        print_matrix(got, round);
         return false;
       }
     }
@@ -216,7 +205,57 @@ TEST_CASE(matmul) {
                                            {38, 44, 50, 56},
                                            {83, 98, 113, 128},
                                        }));
+
 }
+
+
+
+TEST_CASE(matmul_grads) {
+  Mod3l m;
+
+  Block *da = Data(&m, 3, 3);
+  m.set_data(da, {
+     {1, 2, 3}, 
+     {4, 5, 6},
+     {7, 8, 9}
+  });
+
+  // Identity matrix
+  Block *did = Data(&m, 3, 3);
+  m.set_data(did, {
+     {1, 0, 0}, 
+     {0, 1, 0},
+     {0, 0, 1}
+  });
+
+  Block *dc = MatMul(da, did);
+
+  // Multiply by identity and get copy of input!
+  CHECK(assertEqualVectors(da->fval(), dc->fval()));
+
+  // Grads should all be ones for outputs
+  CHECK(assertEqualVectors(dc->bval(), {
+     {1, 1, 1}, 
+     {1, 1, 1}, 
+     {1, 1, 1}, 
+  }));
+
+  // and for inputs:
+  CHECK(assertEqualVectors(da->bval(), {
+     {1, 1, 1}, 
+     {1, 1, 1}, 
+     {1, 1, 1}, 
+  }));
+  //
+  // Except for identity matrix, they are different
+  // TODO: check if this is correct
+  CHECK(assertEqualVectors(did->bval(), {
+     {12, 12, 12}, 
+     {15, 15, 15}, 
+     {18, 18, 18}, 
+  }));
+}
+
 
 TEST_CASE(reshape) {
   Mod3l m;
@@ -741,8 +780,8 @@ TEST_CASE(matrix_views) {
   // Each row represents the content of
   // sliding window 3*3 rolling over b
   // circular
-  CHECK(swv.rows = b.rows * b.cols);
-  CHECK(swv.cols = 3 * 3);
+  CHECK(swv.rows == b.rows * b.cols);
+  CHECK(swv.cols == 3 * 3);
   CHECK(assertEqualVectors(value(swv),{ 
     { 1, 2, 3,   5, 6, 7,  9, 10, 11 },
     { 2, 3, 4,   6, 7, 8,  10, 11,12 },
@@ -757,6 +796,51 @@ TEST_CASE(matrix_views) {
     { 11, 12, 9,  3, 4, 1,  7, 8, 5 },
     { 12, 9, 10,  4, 1, 2,  8, 5, 6 },
   }));
+}
+
+
+TEST_CASE(sliding_window_set) {
+  // Sliding window view
+  Matrix b(2, 2);
+  b.set_data({
+     {0, 0},
+     {0, 0},
+  });
+
+  SlidingWindowView swv(b, 2, 2);
+  // Each row represents the content of
+  // sliding window 3*3 rolling over b
+  // circular
+  CHECK(swv.rows == b.rows * b.cols);
+  CHECK(swv.cols == 2 * 2);
+  CHECK(assertEqualVectors(value(swv),{ 
+    { 0, 0, 0, 0},
+    { 0, 0, 0, 0},
+    { 0, 0, 0, 0},
+    { 0, 0, 0, 0},
+  }));
+
+  swv.set(0, 0, 1);
+  CHECK(assertEqualVectors(value(swv),{ 
+    { 1, 0, 0, 0 },
+    { 0, 1, 0, 0 },
+    { 0, 0, 1, 0 },
+    { 0, 0, 0, 1 },
+  }));
+
+  swv.set(0, 0, 2);  // adding 2
+  CHECK(assertEqualVectors(value(swv),{ 
+    { 3, 0, 0, 0 },
+    { 0, 3, 0, 0 },
+    { 0, 0, 3, 0 },
+    { 0, 0, 0, 3 },
+  }));
+
+  CHECK(assertEqualVectors(value(b),{ 
+    { 3, 0 },
+    { 0, 0 },
+  }));
+
 }
 
 TEST_CASE(convolutions) {
@@ -810,7 +894,7 @@ TEST_CASE(convolutions) {
 }
 
 
-TEST_CASE(more_convolutions) {
+TEST_CASE(convolutions_grads) {
   Mod3l m;
 
   Block *dinput = Data(&m, 3, 3);
@@ -843,7 +927,34 @@ TEST_CASE(more_convolutions) {
      {8, 9, 7}
   }));
 
-  // TODO: add grads tests
+  // Check grads
+  // The output grads are ones:
+  CHECK(assertEqualVectors(dc->bval(), {
+     {1, 1, 1},
+     {1, 1, 1},
+     {1, 1, 1},
+  }));
+
+
+  // Is this right? 
+  // Seems reasonable (45 is sum of all input elements), and each contributes to each
+  // kernel cell but TODO: double check
+  CHECK(assertEqualVectors(dkernel->bval(), {
+     {45, 45},
+     {45, 45},
+  }));
+
+  // The grads are passed to the input as is, since it is identity
+  // TODO: check if that is correct
+  CHECK(assertEqualVectors(dinput->bval(), {
+     {1, 1, 1}, 
+     {1, 1, 1},
+     {1, 1, 1},
+     // Should not they be equal to input instead?
+     //{1, 2, 3},
+     //{4, 5, 6}, 
+     //{7, 8, 9}
+  }));
 }
 
 

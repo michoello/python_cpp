@@ -7,6 +7,7 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 
 #include <cassert>
+#include <iomanip>
 #include <cmath>
 #include <functional>
 #include <iostream>
@@ -103,4 +104,13 @@ static void for_each_el(const Matrix &in1, const Matrix &in2, F fu, Matrix *out 
   }
 }
 
+static void print_matrix(const std::vector<std::vector<double>> &mtx, int round = 3) {
+        for (const auto &row : mtx) {
+          std::cerr << "  { ";
+          for (size_t i = 0; i < row.size(); ++i) {
+            std::cerr << std::fixed << std::setprecision(round) << row[i] << (i < row.size() - 1 ? ", " : " ");
+          }
+          std::cerr << "}\n";
+        }
+}
 
