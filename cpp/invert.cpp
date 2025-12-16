@@ -21,13 +21,9 @@ void Block::apply_bval(float learning_rate) {
     // Ugly. TODO: make it prettier
     size_t grads_count = bawd_funs.size();
     for(size_t g = 0; g < grads_count; ++g) {
-      const Matrix &grads = bval(g);
-      for (int i = 0; i < val.rows; i++) {
-        for (int j = 0; j < val.cols; j++) {
-          // TODO: optimize a bit
-          val.set(i, j, val.get(i, j) - grads.get(i, j) * learning_rate);
-        }
-      }
+      for_each_ella([learning_rate](double grads, double& val) {
+          val -= grads * learning_rate; 
+      }, bval(g), val);
     }
 
     // Now all funcs have to be recalculated. Or should reset_both_lazy_funcs() be called explicitly?

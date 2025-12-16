@@ -7,14 +7,14 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 
 #include <cassert>
-#include <iomanip>
 #include <cmath>
 #include <functional>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <random>
-#include <vector>
 #include <unordered_set>
+#include <vector>
 
 struct Matrix {
   int rows;
@@ -75,42 +75,22 @@ void multiply_matrix(const T &a, const U &b, V *c) {
   }
 }
 
-
-template <typename F>
-static void for_each_el(const Matrix &in, F fu, Matrix *out = nullptr) {
-  using Ret = std::invoke_result_t<F, double&>;
-  if constexpr (std::is_void_v<Ret>) {
-    for (size_t i = 0; i < in.data->size(); ++i) {
-      fu((*in.data)[i]);
-    }
-  } else {
-    for (size_t i = 0; i < in.data->size(); ++i) {
-      (*out->data)[i] = fu((*in.data)[i]);
-    }
+template <typename F, typename... Ms>
+static void for_each_ella(F fu, const Ms &...mats) {
+  const size_t n = std::min({mats.data->size()...});
+  for (size_t i = 0; i < n; ++i) {
+    fu((*mats.data)[i]...);
   }
 }
 
-template <typename F>
-static void for_each_el(const Matrix &in1, const Matrix &in2, F fu, Matrix *out = nullptr) {
-  using Ret = std::invoke_result_t<F, double&, double&>;
-  if constexpr (std::is_void_v<Ret>) {
-    for (size_t i = 0; i < in1.data->size(); ++i) {
-      fu((*in1.data)[i], (*in2.data)[i]);
+static void print_matrix(const std::vector<std::vector<double>> &mtx,
+                         int round = 3) {
+  for (const auto &row : mtx) {
+    std::cerr << "  { ";
+    for (size_t i = 0; i < row.size(); ++i) {
+      std::cerr << std::fixed << std::setprecision(round) << row[i]
+                << (i < row.size() - 1 ? ", " : " ");
     }
-  } else {
-    for (size_t i = 0; i < in1.data->size(); ++i) {
-      (*out->data)[i] = fu((*in1.data)[i], (*in2.data)[i]);
-    }
+    std::cerr << "}\n";
   }
 }
-
-static void print_matrix(const std::vector<std::vector<double>> &mtx, int round = 3) {
-        for (const auto &row : mtx) {
-          std::cerr << "  { ";
-          for (size_t i = 0; i < row.size(); ++i) {
-            std::cerr << std::fixed << std::setprecision(round) << row[i] << (i < row.size() - 1 ? ", " : " ");
-          }
-          std::cerr << "}\n";
-        }
-}
-

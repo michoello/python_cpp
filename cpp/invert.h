@@ -12,8 +12,8 @@
 #include <iostream>
 #include <memory>
 #include <random>
-#include <vector>
 #include <unordered_set>
+#include <vector>
 
 #include "matrix.h"
 
@@ -25,15 +25,16 @@ struct LazyFunc {
   Matrix &val() { return mtx; }
   const Matrix &val() const { return mtx; }
 
-  template <typename F> void set_fun(F &&f) { 
-     fun = std::forward<F>(f); 
-     is_calculated = false;
+  template <typename F> void set_fun(F &&f) {
+    fun = std::forward<F>(f);
+    is_calculated = false;
   }
 
-  LazyFunc(int r, int c) : mtx(r, c, 1.0) { }
+  LazyFunc(int r, int c) : mtx(r, c, 1.0) {}
 
   void calc() {
-    if(is_calculated) return;
+    if (is_calculated)
+      return;
     fun(&mtx);
     is_calculated = true;
   }
@@ -47,25 +48,25 @@ struct Block {
   mutable LazyFunc fowd_fun;
   mutable std::vector<LazyFunc> bawd_funs;
 
-  const Matrix& fval() const {
+  const Matrix &fval() const {
     fowd_fun.calc();
     return fowd_fun.val();
   }
 
-  const Matrix& bval(size_t idx = 0) const {
+  const Matrix &bval(size_t idx = 0) const {
     // ugly.. think about better
     if (bawd_funs.empty()) {
-       return default_grads;
+      return default_grads;
     }
     bawd_funs[idx].calc();
     return bawd_funs[idx].val();
   }
 
   template <typename F> void set_fowd_fun(F &&f) { fowd_fun.set_fun(f); }
-  template <typename F> void add_bawd_fun(F &&f) { 
-      LazyFunc bawd_fun(fowd_fun.mtx.rows, fowd_fun.mtx.cols);
-      bawd_fun.set_fun(f); 
-      bawd_funs.push_back(bawd_fun);
+  template <typename F> void add_bawd_fun(F &&f) {
+    LazyFunc bawd_fun(fowd_fun.mtx.rows, fowd_fun.mtx.cols);
+    bawd_fun.set_fun(f);
+    bawd_funs.push_back(bawd_fun);
   }
 
   // -------
@@ -75,11 +76,11 @@ struct Block {
   Block(const std::vector<Block *> &argz, int r, int c);
 
   void reset_both_lazy_funcs() {
-     fowd_fun.is_calculated = false;
-     for(auto& bawd_fun: bawd_funs) {
-        bawd_fun.is_calculated = false;
-     }
-	}
+    fowd_fun.is_calculated = false;
+    for (auto &bawd_fun : bawd_funs) {
+      bawd_fun.is_calculated = false;
+    }
+  }
 
   void apply_bval(float learning_rate);
 };
@@ -91,28 +92,28 @@ private:
 public:
   Mod3l() {}
 
-  Block* add(Block *block) {
+  Block *add(Block *block) {
     blocks.insert(block);
     block->model = this;
     return block;
   }
 
   ~Mod3l() {
-    for (auto &block: blocks) {
+    for (auto &block : blocks) {
       delete block;
     }
   }
 
   void set_data(Block *block, const std::vector<std::vector<double>> &vals) {
-    //block->fval().set_data(vals);
+    // block->fval().set_data(vals);
     block->fowd_fun.val().set_data(vals);
     reset_all_lazy_funcs();
   }
 
   void reset_all_lazy_funcs() {
-    for(auto& block: blocks) {
-       block->reset_both_lazy_funcs();
-    } 
+    for (auto &block : blocks) {
+      block->reset_both_lazy_funcs();
+    }
   }
 };
 
@@ -175,17 +176,19 @@ template <class M> struct ReshapedView {
       : src(&src), rows(rows),
         cols(cols) { /* TODO: check rows*cols=rows*cols */
   }
-  inline double get(int r, int c) const {
+
+  std::pair<size_t, size_t> convert(size_t r, size_t c) const {
     size_t idx = r * cols + c;
-    size_t src_r = idx / src->cols;
-    size_t src_c = idx % src->cols;
+    return {idx / src->cols, idx % src->cols};
+  }
+
+  inline double get(int r, int c) const {
+    auto [src_r, src_c] = convert(r, c);
     return src->get(src_r, src_c);
   }
 
   inline void set(int r, int c, double value) {
-    size_t idx = r * cols + c;
-    size_t src_r = idx / src->cols;
-    size_t src_c = idx % src->cols;
+    auto [src_r, src_c] = convert(r, c);
     src->set(src_r, src_c, value);
   }
 };
@@ -205,28 +208,27 @@ template <class M> struct SlidingWindowView {
     rows = src.rows * src.cols;
     cols = window_rows * window_cols;
   }
-  inline double get(int r, int c) const {
-    auto [base_row, base_col, delta_row, delta_col] = std::tuple(
-        r / src->cols, r % src->cols, c / window_cols, c % window_cols);
 
-    size_t src_r = (base_row + delta_row) % src->rows;
-    size_t src_c = (base_col + delta_col) % src->cols;
-    return src->get(src_r, src_c);
-  }
-
-  inline void set(int r, int c, double value) {
-    // TODO:
-    // this is gona be a bit crazy. instead of assigning, it should calc the
-    // difference between prev value and new value, and update source with that
-    // difference.
+  std::pair<size_t, size_t> convert(size_t r, size_t c) const {
     size_t base_row = r / src->cols;
     size_t base_col = r % src->cols;
     size_t delta_row = c / window_cols;
     size_t delta_col = c % window_cols;
     size_t row = base_row + delta_row;
     size_t col = base_col + delta_col;
-    row = row % src->rows;
-    col = col % src->cols;
+    return {row % src->rows, col % src->cols};
+  }
+
+  inline double get(int r, int c) const {
+    auto [src_r, src_c] = convert(r, c);
+    return src->get(src_r, src_c);
+  }
+
+  inline void set(int r, int c, double value) {
+    // This is a bit crazy. instead of assigning the result, we increase it
+    // each time. Since convolution is essentially faning out the source matrix into
+    // list of shingles, each cell is multiplied many times, thus grads sum up.
+    auto [row, col] = convert(r, c);
     src->set(row, col, src->get(row, col) + value);
   }
 };
@@ -234,7 +236,8 @@ template <class M> struct SlidingWindowView {
 // Circular convolution, to keep it simple
 // Output size is same as input
 static Block *Convo(Block *input, Block *kernel) {
-  Block *res = new Block({input, kernel}, input->fval().rows, input->fval().cols);
+  Block *res =
+      new Block({input, kernel}, input->fval().rows, input->fval().cols);
   // input -> m, n
   // kernel -> k, l
   // output -> m, n
@@ -259,26 +262,14 @@ static Block *Convo(Block *input, Block *kernel) {
     SlidingWindowView dinput_slide(*dinputs, k, l);
     //
     // Set dinputs to all zeros
-    for_each_el(*dinputs, [](double a) { return 0; }, dinputs);
-   /* 
-    std::cerr << "dout_flat\n";
-    print_matrix(value(dout_flat));
+    // TODO: this will not work if we have several grads coming
+    // NEeds foxing.
+    for_each_ella([](double &a) { a = 0; }, *dinputs);
 
-    std::cerr << "kernelflt_transpo\n";
-    print_matrix(value(TransposedView(kernel_flat)));
-
-    std::cerr << "dinput_slide before\n";
-    print_matrix(value(dinput_slide));
-*/
     multiply_matrix(dout_flat,                   // m * n, 1
                     TransposedView(kernel_flat), // 1, k * l
                     &dinput_slide                // m * n, k * l
     );
-/*
-    std::cerr << "dinput_slide after\n";
-    print_matrix(value(dinput_slide));
-*/
-
   });
 
   kernel->add_bawd_fun([input, res](Matrix *dkernel) {
@@ -316,11 +307,10 @@ static double sigmoid_derivative(double x) {
 
 static double tbd(double) { return 0; }
 
-
 static Block *Reshape(Block *a, int rows, int cols) {
   Block *res = new Block({a}, rows, cols);
   res->set_fowd_fun([=](Matrix *out) {
-    for_each_el(a->fval(), [](double a) { return a; }, out);
+    for_each_ella([](double in, double &out) { out = in; }, a->fval(), *out);
   });
 
   a->add_bawd_fun([res](Matrix *) {
@@ -329,18 +319,19 @@ static Block *Reshape(Block *a, int rows, int cols) {
   return res;
 }
 
-
 template <typename F1, typename F2>
 static Block *ElFun(Block *arg, F1 fwd, F2 bwd) {
   Block *block = new Block({arg}, arg->fval().rows, arg->fval().cols);
 
-  block->set_fowd_fun([=](Matrix *out) { 
-     for_each_el(arg->fval(), fwd, out); 
+  block->set_fowd_fun([=](Matrix *out) {
+    for_each_ella([fwd](double in, double &out) { out = fwd(in); }, arg->fval(),
+                  *out);
   });
-    
+
   arg->add_bawd_fun([=](Matrix *out) {
-    for_each_el(arg->fval(), block->bval(),
-                [bwd](double in, double grad) { return bwd(in) * grad; }, out);
+    for_each_ella([bwd](double in, double grad_in,
+                        double &grad_back) { grad_back = bwd(in) * grad_in; },
+                  arg->fval(), block->bval(), *out);
   });
 
   return block;
@@ -361,16 +352,18 @@ static Block *Add(Block *a1, Block *a2) {
   auto *res = new Block({a1, a2}, a1->fval().rows, a1->fval().cols);
 
   res->set_fowd_fun([=](Matrix *out) {
-    for_each_el(a1->fval(), a2->fval(), 
-                [](double a, double b) { return a + b; }, out);
+    for_each_ella([](double a, double b, double &c) { c = a + b; }, a1->fval(),
+                  a2->fval(), *out);
   });
 
   a1->add_bawd_fun([res](Matrix *out) {
-    for_each_el(res->bval(), [](double g) { return g; }, out);
+    for_each_ella([](double grad_in, double &grad_out) { grad_out = grad_in; },
+                  res->bval(), *out);
   });
 
   a2->add_bawd_fun([res](Matrix *out) {
-    for_each_el(res->bval(), [](double g) { return g; }, out);
+    for_each_ella([](double grad_in, double &grad_out) { grad_out = grad_in; },
+                  res->bval(), *out);
   });
 
   return res;
@@ -384,13 +377,13 @@ static Block *Sum(Block *a) {
 
   res->set_fowd_fun([=](Matrix *out) {
     double s = 0;
-    for_each_el(a->fval(), [&s](double a) { s += a; });
+    for_each_ella([&s](double a) { s += a; }, a->fval());
     out->set(0, 0, s);
   });
 
   a->add_bawd_fun([a, res](Matrix *out) {
-    double grad = res->bval().get(0, 0);
-    for_each_el(a->fval(), [grad](double) { return grad; }, out);
+    double grad_in = res->bval().get(0, 0);
+    for_each_ella([grad_in](double &grad_out) { grad_out = grad_in; }, *out);
   });
 
   return res;
@@ -401,28 +394,29 @@ static Block *SSE(Block *a1, Block *a2) {
 
   res->set_fowd_fun([=](Matrix *out) {
     double s = 0;
-    for_each_el(a1->fval(), a2->fval(),
-                [&s](double a, double b) { s += square(b - a); });
+    for_each_ella([&s](double a, double b) { s += square(b - a); }, a1->fval(),
+                  a2->fval());
     out->set(0, 0, s);
   });
 
   a1->add_bawd_fun([=](Matrix *da1) {
-    for_each_el(a1->fval(), a2->fval(), 
-                [](double a, double b) { return 2 * (a - b); }, da1);
+    for_each_ella(
+        [](double a, double b, double &grad_out) { grad_out = 2 * (a - b); },
+        a1->fval(), a2->fval(), *da1);
   });
 
   a2->add_bawd_fun([=](Matrix *da2) {
-    for_each_el(a1->fval(), a2->fval(), 
-                [](double a, double b) { return 2 * (b - a); }, da2);
+    for_each_ella(
+        [](double a, double b, double &grad_out) { grad_out = 2 * (b - a); },
+        a1->fval(), a2->fval(), *da2);
   });
 
   return res;
 }
 
-
 static double clip(double p) {
-	double epsilon = 1e-12; // small value to avoid log(0)
-	return std::min(std::max(p, epsilon), 1.0 - epsilon);
+  double epsilon = 1e-12; // small value to avoid log(0)
+  return std::min(std::max(p, epsilon), 1.0 - epsilon);
 }
 
 // Binary Cross Enthropy
@@ -432,17 +426,21 @@ static Block *BCE(Block *a1, Block *a2) {
   auto *res = new Block({a1, a2}, a1->fval().rows, a1->fval().cols);
 
   res->set_fowd_fun([=](Matrix *out) {
-    for_each_el(a1->fval(), a2->fval(), [](double y_p, double y_t) {
-      double p = clip(y_p); 
-      return -(y_t * std::log(p) + (1.0 - y_t) * std::log(1.0 - p));
-    }, out);
+    for_each_ella(
+        [](double y_p, double y_t, double &res) {
+          double p = clip(y_p);
+          res = -(y_t * std::log(p) + (1.0 - y_t) * std::log(1.0 - p));
+        },
+        a1->fval(), a2->fval(), *out);
   });
 
   a1->add_bawd_fun([a1, a2](Matrix *out) {
-    for_each_el(a1->fval(), a2->fval(), [](double y_p, double y_t) {
-      double p = clip(y_p); 
-      return -(y_t / p) + ((1.0 - y_t) / (1.0 - p));
-    }, out);
+    for_each_ella(
+        [](double y_p, double y_t, double &grads_back) {
+          double p = clip(y_p);
+          grads_back = -(y_t / p) + ((1.0 - y_t) / (1.0 - p));
+        },
+        a1->fval(), a2->fval(), *out);
   });
 
   return res;
