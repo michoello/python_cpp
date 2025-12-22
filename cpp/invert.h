@@ -305,6 +305,24 @@ static double sigmoid_derivative(double x) {
   return s * (1.0 - s);
 }
 
+
+static double tanh_custom(double x) {
+  if (x >= 0.0) {
+      double e = std::exp(-2.0 * x);
+      return (1.0 - e) / (1.0 + e);
+  } else {
+      double e = std::exp(2.0 * x);
+      return (e - 1.0) / (e + 1.0);
+  }
+}
+
+static double tanh_derivative(double x) {
+  double t = tanh(x);
+	return 1 - t * t;
+}
+
+
+
 static double tbd(double) { return 0; }
 
 static Block *Reshape(Block *a, int rows, int cols) {
@@ -343,6 +361,10 @@ static Block *Sigmoid(Block *a) {
   return ElFun(a, &sigmoid, &sigmoid_derivative);
 }
 
+static Block *Tanh(Block *a) {
+  return ElFun(a, &tanh_custom, &tanh_derivative);
+}
+
 static Block *MulEl(Block *a, double n) {
   return ElFun(
       a, [n](double d) { return n * d; }, &tbd);
@@ -371,6 +393,28 @@ static Block *Add(Block *a1, Block *a2) {
 
 // Difference
 static Block *Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
+
+
+// This implementation does not respect rows of matrix,
+//and calculates the softmax over entire matrix
+static Block *SoftMax(Block *a) {
+  auto *res = new Block({a}, a->fval().rows, a->fval().cols);
+
+  res->set_fowd_fun([=](Matrix *out) {
+    const Matrix& in = a->fval();
+    double max_val = in.get(0, 0);
+    for_each_ella([&max_val](double i) { max_val = std::max(max_val, i); }, in);
+    double sum = 0.0;
+    for_each_ella([&sum, max_val](double i/*n*/, double& o/*ut*/) { 
+       o = std::exp(i - max_val);
+       sum += o;
+    }, in, *out);
+    for_each_ella([sum](double& o) { o /= sum; }, *out);
+  });
+ 
+  return res; 
+}
+
 
 static Block *Sum(Block *a) {
   auto *res = new Block({a}, 1, 1);

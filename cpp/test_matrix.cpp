@@ -959,4 +959,38 @@ TEST_CASE(convolutions_grads) {
 
 
 
+TEST_CASE(softmax) {
+  Mod3l m;
+  Block *da = Data(&m, 2, 2);
+  Block *ds = SoftMax(da);
+
+  // all equal
+  m.set_data(da, {{1, 1}, {1, 1}});
+  CHECK(assertEqualVectors(ds->fval(), {
+                                           {0.25, 0.25},
+                                           {0.25, 0.25},
+                                       }));
+  // one stands out
+  m.set_data(da, {{0, 0}, {0, 8}});
+  CHECK(assertEqualVectors(ds->fval(), {
+                                           {0.0, 0.0},
+                                           {0.0, 0.999},
+                                       }));
+  // same ordering
+  m.set_data(da, {{1, 2}, {3, 4}});
+  CHECK(assertEqualVectors(ds->fval(), {
+                                           {0.032, 0.087},
+                                           {0.237, 0.644},
+                                       }));
+
+  // TODO: add loss and grads test. The correct loss is MCE, the true values to err agains are probabilities.
+  // And the grads to go back are simply difference between true values and ds values.
+}
+
+/*
+TEST_CASE(tanh) {
+   // TODO
+}
+*/
+
 int main(int argc, char **argv) { return run_tests(argc, argv); }

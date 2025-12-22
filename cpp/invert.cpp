@@ -5,6 +5,7 @@
 
 Block::Block(const std::vector<Block *> &argz, int r, int c): fowd_fun(r, c), default_grads(r, c, 1.0)
 {
+  // TODO: check r and z are not zero.
   // TODO: This is very ugly, rewrite it
   for (Block *arg : argz) {
     if (model == nullptr && arg->model != nullptr) {
