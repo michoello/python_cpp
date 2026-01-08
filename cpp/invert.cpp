@@ -3,7 +3,7 @@
 
 #include "invert.h"
 
-Block::Block(const std::vector<Block *> &argz, int r, int c): fowd_fun(r, c), default_grads(r, c, 1.0)
+Block::Block(const std::vector<Block *> &argz, int r, int c): fowd_fun(r, c), default_grads(r, c, 0.0)
 {
   // TODO: check r and z are not zero.
   // TODO: This is very ugly, rewrite it
@@ -15,6 +15,9 @@ Block::Block(const std::vector<Block *> &argz, int r, int c): fowd_fun(r, c), de
   }
 }
 
+void Block::reset_model() {
+    model->reset_all_lazy_funcs();
+}
 
 void Block::apply_bval(float learning_rate) {
     Matrix &val = fowd_fun.val();

@@ -67,7 +67,12 @@ struct Block {
     LazyFunc bawd_fun(fowd_fun.mtx.rows, fowd_fun.mtx.cols);
     bawd_fun.set_fun(f);
     bawd_funs.push_back(bawd_fun);
+
+    // The graph updated, invalidate all values
+    reset_model();
   }
+
+  void reset_model();
 
   // -------
   // TODO: Get rid of this "default"
@@ -412,9 +417,28 @@ static Block *SoftMax(Block *a) {
     for_each_ella([sum](double& o) { o /= sum; }, *out);
   });
  
+  // TODO: bawd fun.
+
   return res; 
 }
 
+static Block *Abs(Block *a) {
+  auto *res = new Block({a}, a->fval().rows, a->fval().cols);
+
+  res->set_fowd_fun([=](Matrix *out) {
+    for_each_ella([](double i/*n*/, double& o/*ut*/) { 
+       o = i >= 0 ? i : -i;
+    }, a->fval(), *out);
+  });
+
+  a->add_bawd_fun([a, res](Matrix *out) {
+    for_each_ella([](double in, double &grad_out) { 
+      grad_out = in >= 0 ? 1 : -1; 
+    }, a->fval(), *out);
+  });
+
+  return res;
+}
 
 static Block *Sum(Block *a) {
   auto *res = new Block({a}, 1, 1);

@@ -229,6 +229,7 @@ TEST_CASE(matmul_grads) {
   });
 
   Block *dc = MatMul(da, did);
+  Abs(dc);  // trivial loss for grads check
 
   // Multiply by identity and get copy of input!
   CHECK(assertEqualVectors(da->fval(), dc->fval()));
@@ -293,6 +294,7 @@ TEST_CASE(matmul_with_grads) {
   m.set_data(db, {{3, 4, 5}, {6, 7, 8}});
 
   Block *dc = MatMul(da, db);
+  Abs(dc);
 
   CHECK(assertEqualVectors(dc->fval(), {
                                            {15, 18, 21},
@@ -353,10 +355,10 @@ TEST_CASE(add_matrix) {
 		{ 0.071, 4.500, 10.989 }
   }));
 
-  // Backend gradient is always ones
+  // Backend gradient is always zeroes
   CHECK(assertEqualVectors(dl->bval(), {
-		{ 1, 1, 1},
-		{ 1, 1, 1}
+		{ 0, 0, 0},
+		{ 0, 0, 0},
   }));
 
   // Calc derivatives
@@ -470,7 +472,20 @@ TEST_CASE(sum_mat) {
   CHECK(assertEqualVectors(ds->fval(), {
                                            {21},
                                        }));
+  // Grads of const are zeroes                                     
+  CHECK(assertEqualVectors(da->bval(), {
+                                           {0, 0, 0}, 
+                                           {0, 0, 0}, 
+                                       }));
 
+  // Adding abs loss function to get non-empty grads
+  Block *dabs = Abs(ds); 
+  CHECK(assertEqualVectors(dabs->fval(), {
+                                           {21},
+                                       }));
+
+
+  // Now grads are propagated back from Abs to const input values
   CHECK(assertEqualVectors(da->bval(), {
                                            {1, 1, 1},
                                            {1, 1, 1},
@@ -499,6 +514,7 @@ TEST_CASE(sse) {
   m.set_data(db1, {{3}});
 
   Block *ds1 = SSE(da1, db1);
+  Abs(ds1);
 
   CHECK(assertEqualVectors(ds1->fval(), { {9}, }));
 
@@ -519,6 +535,8 @@ TEST_CASE(sse_with_grads) {
   m.set_data(dl, {{0, 4}});
 
   Block *ds = SSE(dy, dl);
+
+  Abs(ds);
 
   CHECK(assertEqualVectors(ds->fval(), {{5}}));
 
@@ -552,8 +570,8 @@ TEST_CASE(sigmoid_with_grads) {
   m.set_data(w, {{-0.1, 0.5, 0.3}, {-0.6, 0.7, 0.8}});
 
   Block *mm = MatMul(x, w);
-
   Block *sb = Sigmoid(mm);
+  Abs(sb);
 
   CHECK(assertEqualVectors(sb->fval(), {{0.527, 0.478, 0.468}}));
 
@@ -573,6 +591,8 @@ TEST_CASE(sigmoid_with_gradas) {
 
   Block *mm = MatMul(x, w);
   Block *sb = Sigmoid(mm);
+
+  Abs(sb);
 
   CHECK(assertEqualVectors(sb->fval(), {{0.527, 0.478, 0.468}}));
 
@@ -663,6 +683,8 @@ TEST_CASE(full_layer_with_loss_with_grads) {
   CHECK(assertEqualVectors(sb->fval(), {{0.527, 0.478, 0.468}}));
   CHECK(assertEqualVectors(bce->fval(), {{0.75, 0.739, 0.691}}));
 
+  Abs(bce);  // for grads
+
   // Calc diff and check the loss values
   // Derivative of loss against itself is ones
   CHECK(assertEqualVectors(bce->bval(), {{1, 1, 1}}));
@@ -715,13 +737,15 @@ TEST_CASE(grad_fork) {
   Block *ds2 = Add(dc, db); // 3 + 2 = 5
 
   Block *ds = Add(ds1, ds2);  // 3 + 5 = 8 
-
+  
   // TODO: method? or make it a wrapper funcs instead of vecs?
   CHECK(ds->bawd_funs.size() == 0);
   CHECK(ds1->bawd_funs.size() == 1);
   CHECK(da->bawd_funs.size() == 1);
   CHECK(db->bawd_funs.size() == 2);
   CHECK(dc->bawd_funs.size() == 1);
+
+  Abs(ds);  // to enable grads
 
   CHECK(assertEqualVectors(ds->fval(), { {8, 8, 8} }));
   CHECK(assertEqualVectors(ds->bval(), { {1, 1, 1} }));
@@ -926,6 +950,8 @@ TEST_CASE(convolutions_grads) {
      {5, 6, 4}, 
      {8, 9, 7}
   }));
+
+  Abs(dc); // for non-empty grads
 
   // Check grads
   // The output grads are ones:
