@@ -13,6 +13,15 @@ Block::Block(const std::vector<Block *> &argz, int r, int c): fowd_fun(r, c), de
       // TODO: check that all args belong to the same model
     }
   }
+
+
+  auto f = [](Matrix *out) {
+        for_each_ella([](double &out) { out = 0; }, *out);
+      };
+  LazyFunc bawd_fun(r, c);
+  bawd_fun.set_fun(f);
+  bawd_funs.push_back(bawd_fun);
+
 }
 
 void Block::reset_model() {
@@ -24,6 +33,7 @@ void Block::apply_bval(float learning_rate) {
 
     // Ugly. TODO: make it prettier
     size_t grads_count = bawd_funs.size();
+    //grads_count = 1;
     for(size_t g = 0; g < grads_count; ++g) {
       for_each_ella([learning_rate](double grads, double& val) {
           val -= grads * learning_rate; 

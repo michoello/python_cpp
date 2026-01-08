@@ -53,7 +53,7 @@ struct Block {
     return fowd_fun.val();
   }
 
-  const Matrix &bval(size_t idx = 0) const {
+  const Matrix &bval(size_t idx = 1) const {
     // ugly.. think about better
     if (bawd_funs.empty()) {
       return default_grads;
