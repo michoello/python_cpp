@@ -1,5 +1,5 @@
 import unittest
-from listinvert import Matrix, multiply_matrix, Mod3l, Block, Data, MatMul, SSE, Add, BCE, Sigmoid, Reshape, value
+from listinvert import Matrix, multiply_matrix, Mod3l, Block, Data, MatMul, SSE, Abs, Add, BCE, Sigmoid, Reshape, value
 
 
 def python_matmul(A, B):
@@ -108,6 +108,7 @@ value(            dc.fval()),
         m.set_data(dl, [[0, 4]])
 
         ds = SSE(dy, dl)
+        Abs(ds)
 
         self.assertEqual(value(ds.fval()), [[5]])
 

@@ -39,6 +39,7 @@ PYBIND11_MODULE(_listinvert, m) {
     m.def("MatMul", &MatMul, py::return_value_policy::reference_internal, "Matrix multiplication");
     m.def("Add", &Add, py::return_value_policy::reference_internal, "Matrix sum");
     m.def("SSE", &SSE, py::return_value_policy::reference_internal, "SSE loss func");
+    m.def("Abs", &Abs, py::return_value_policy::reference_internal, "Abs loss func (mostly for tests)");
     m.def("BCE", &BCE, py::return_value_policy::reference_internal, "BCE loss func");
     m.def("Sigmoid", &Sigmoid, py::return_value_policy::reference_internal, "Sigmoid applied to each element");
     m.def("Reshape", &Reshape, py::return_value_policy::reference_internal, "SSE loss func");
