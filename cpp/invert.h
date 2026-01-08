@@ -53,11 +53,9 @@ struct Block {
     return fowd_fun.val();
   }
 
-  const Matrix &bval(size_t idx = 1) const {
+  const Matrix &bval() const {
     bawd_funs[0].calc();
     return bawd_funs[0].val();
-    //bawd_funs[idx].calc();
-    //return bawd_funs[idx].val();
   }
 
   template <typename F> void set_fowd_fun(F &&f) { fowd_fun.set_fun(f); }

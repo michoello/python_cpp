@@ -31,14 +31,9 @@ void Block::reset_model() {
 void Block::apply_bval(float learning_rate) {
     Matrix &val = fowd_fun.val();
 
-    // Ugly. TODO: make it prettier
-    size_t grads_count = bawd_funs.size();
-    //grads_count = 1;
-    for(size_t g = 0; g < grads_count; ++g) {
-      for_each_ella([learning_rate](double grads, double& val) {
+    for_each_ella([learning_rate](double grads, double& val) {
           val -= grads * learning_rate; 
-      }, bval(g), val);
-    }
+    }, bval(), val);
 
     // Now all funcs have to be recalculated. Or should reset_both_lazy_funcs() be called explicitly?
 		model->reset_all_lazy_funcs();
