@@ -54,8 +54,10 @@ struct Block {
   }
 
   const Matrix &bval(size_t idx = 1) const {
-    bawd_funs[idx].calc();
-    return bawd_funs[idx].val();
+    bawd_funs[0].calc();
+    return bawd_funs[0].val();
+    //bawd_funs[idx].calc();
+    //return bawd_funs[idx].val();
   }
 
   template <typename F> void set_fowd_fun(F &&f) { fowd_fun.set_fun(f); }
@@ -74,11 +76,9 @@ struct Block {
     LazyFunc bawd_fun(fowd_fun.mtx.rows, fowd_fun.mtx.cols);
     bawd_fun.set_fun(ff);
     
-    // This causes segmentation fault:
-    // but must work
-    //bawd_funs[0] = bawd_fun;
+    bawd_funs[0] = bawd_fun;
     
-    bawd_funs.push_back(bawd_fun);
+    //bawd_funs.push_back(bawd_fun);
 
     // The graph updated, invalidate all values
     reset_model();
