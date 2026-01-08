@@ -54,18 +54,30 @@ struct Block {
   }
 
   const Matrix &bval(size_t idx = 1) const {
-    // ugly.. think about better
-    if (bawd_funs.empty()) {
-      return default_grads;
-    }
     bawd_funs[idx].calc();
     return bawd_funs[idx].val();
   }
 
   template <typename F> void set_fowd_fun(F &&f) { fowd_fun.set_fun(f); }
   template <typename F> void add_bawd_fun(F &&f) {
+    // !!! 
+    LazyFunc prev_one = bawd_funs[0];
+    auto ff = [prev_one, f](Matrix *out) mutable {
+        prev_one.calc();
+        Matrix prev_grad =  prev_one.val();
+
+        f(out);
+
+        for_each_ella([](double p, double &out) { out += p; }, prev_grad, *out);
+      };
+
     LazyFunc bawd_fun(fowd_fun.mtx.rows, fowd_fun.mtx.cols);
-    bawd_fun.set_fun(f);
+    bawd_fun.set_fun(ff);
+    
+    // This causes segmentation fault:
+    // but must work
+    //bawd_funs[0] = bawd_fun;
+    
     bawd_funs.push_back(bawd_fun);
 
     // The graph updated, invalidate all values
@@ -75,8 +87,6 @@ struct Block {
   void reset_model();
 
   // -------
-  // TODO: Get rid of this "default"
-  Matrix default_grads;
   Block() : Block({}, 1, 1) {} // temporay
   Block(const std::vector<Block *> &argz, int r, int c);
 
