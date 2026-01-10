@@ -55,8 +55,8 @@ struct Block {
   }
 
   const Matrix &bval() const {
-    bawd_funs[0].calc();
-    return bawd_funs[0].val();
+    bawd_fun.calc();
+    return bawd_fun.val();
   }
 
   template <typename F> void set_fowd_fun(F &&f) { fowd_fun.set_fun(f); }
@@ -64,6 +64,7 @@ struct Block {
     // !!! 
     LazyFunc prev_one = bawd_funs[0];
     auto ff = [prev_one, f](Matrix *out) mutable {
+        prev_one.is_calculated = false;
         prev_one.calc();
         Matrix prev_grad =  prev_one.val();
 
@@ -88,9 +89,7 @@ struct Block {
 
   void reset_both_lazy_funcs() {
     fowd_fun.is_calculated = false;
-    for (auto &bawd_fun : bawd_funs) {
-      bawd_fun.is_calculated = false;
-    }
+    bawd_fun.is_calculated = false;
   }
 
   void apply_bval(float learning_rate);
