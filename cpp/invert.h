@@ -33,10 +33,10 @@ struct LazyFunc {
   LazyFunc(int r, int c) : mtx(r, c, 1.0) {}
 
   void calc() {
-    if (is_calculated)
-      return;
-    fun(&mtx);
-    is_calculated = true;
+    if (!is_calculated) {
+      fun(&mtx);
+      is_calculated = true;
+    }
   }
 };
 
@@ -46,6 +46,7 @@ struct Block {
   Mod3l *model = nullptr;
 
   mutable LazyFunc fowd_fun;
+  mutable LazyFunc bawd_fun;
   mutable std::vector<LazyFunc> bawd_funs;
 
   const Matrix &fval() const {
@@ -71,12 +72,9 @@ struct Block {
         for_each_ella([](double p, double &out) { out += p; }, prev_grad, *out);
       };
 
-    LazyFunc bawd_fun(fowd_fun.mtx.rows, fowd_fun.mtx.cols);
     bawd_fun.set_fun(ff);
     
     bawd_funs[0] = bawd_fun;
-    
-    //bawd_funs.push_back(bawd_fun);
 
     // The graph updated, invalidate all values
     reset_model();

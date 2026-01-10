@@ -721,9 +721,7 @@ TEST_CASE(full_layer_with_loss_with_grads) {
   CHECK(assertEqualVectors(bce->fval(), {{0.734, 0.723, 0.691}}));
 }
 
-
 TEST_CASE(grad_fork) {
-
   Mod3l m;
   Block *da = Data(&m, 1, 3);
   Block *db = Data(&m, 1, 3);
@@ -745,9 +743,7 @@ TEST_CASE(grad_fork) {
   CHECK(db->bawd_funs.size() == 1);
   CHECK(dc->bawd_funs.size() == 1);
 
-
   Abs(ds);  // to enable grads
-
 
   CHECK(assertEqualVectors(ds->fval(), { {8, 8, 8} }));
 
