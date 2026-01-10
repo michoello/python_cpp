@@ -736,18 +736,9 @@ TEST_CASE(grad_fork) {
 
   Block *ds = Add(ds1, ds2);  // 3 + 5 = 8 
   
-  // TODO: delete this
-  CHECK(ds->bawd_funs.size() == 1);
-  CHECK(ds1->bawd_funs.size() == 1);
-  CHECK(da->bawd_funs.size() == 1);
-  CHECK(db->bawd_funs.size() == 1);
-  CHECK(dc->bawd_funs.size() == 1);
-
   Abs(ds);  // to enable grads
 
   CHECK(assertEqualVectors(ds->fval(), { {8, 8, 8} }));
-
-  // TODO: restore this:
 
   CHECK(assertEqualVectors(ds->bval(), { {1, 1, 1} }));
   CHECK(assertEqualVectors(ds1->bval(), { {1, 1, 1} }));

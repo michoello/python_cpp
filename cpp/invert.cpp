@@ -13,17 +13,6 @@ Block::Block(const std::vector<Block *> &argz, int r, int c): fowd_fun(r, c), ba
       // TODO: check that all args belong to the same model
     }
   }
-
-
-  auto f = [](Matrix *out) {
-        for_each_ella([](double &out) { out = 0; }, *out);
-      };
-  LazyFunc b_fun(r, c);
-  b_fun.set_fun(f);
-
-  bawd_fun.set_fun(f);
-  bawd_funs.push_back(b_fun);
-
 }
 
 void Block::reset_model() {

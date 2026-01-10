@@ -30,7 +30,7 @@ struct LazyFunc {
     is_calculated = false;
   }
 
-  LazyFunc(int r, int c) : mtx(r, c, 1.0) {}
+  LazyFunc(int r, int c) : mtx(r, c) {}
 
   void calc() {
     if (!is_calculated) {
@@ -47,7 +47,6 @@ struct Block {
 
   mutable LazyFunc fowd_fun;
   mutable LazyFunc bawd_fun;
-  mutable std::vector<LazyFunc> bawd_funs;
 
   const Matrix &fval() const {
     fowd_fun.calc();
@@ -61,21 +60,15 @@ struct Block {
 
   template <typename F> void set_fowd_fun(F &&f) { fowd_fun.set_fun(f); }
   template <typename F> void add_bawd_fun(F &&f) {
-    // !!! 
-    LazyFunc prev_one = bawd_funs[0];
-    auto ff = [prev_one, f](Matrix *out) mutable {
+    auto ff = [prev_one = bawd_fun, f](Matrix *out) mutable {
         prev_one.is_calculated = false;
         prev_one.calc();
-        Matrix prev_grad =  prev_one.val();
-
         f(out);
-
-        for_each_ella([](double p, double &out) { out += p; }, prev_grad, *out);
+        for_each_ella([](double p, double &out) { out += p; }, prev_one.val(), *out);
       };
 
+    bawd_fun = LazyFunc(bawd_fun.mtx.rows, bawd_fun.mtx.cols);
     bawd_fun.set_fun(ff);
-    
-    bawd_funs[0] = bawd_fun;
 
     // The graph updated, invalidate all values
     reset_model();
@@ -83,8 +76,6 @@ struct Block {
 
   void reset_model();
 
-  // -------
-  Block() : Block({}, 1, 1) {} // temporay
   Block(const std::vector<Block *> &argz, int r, int c);
 
   void reset_both_lazy_funcs() {
