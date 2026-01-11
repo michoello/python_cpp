@@ -396,13 +396,7 @@ static Block *Add(Block *a1, Block *a2) {
 static Block *Dif(Block *a1, Block *a2) { return Add(a1, MulEl(a2, -1)); };
 
 
-// This implementation does not respect rows of matrix,
-//and calculates the softmax over entire matrix
-static Block *SoftMax(Block *a) {
-  auto *res = new Block({a}, a->fval().rows, a->fval().cols);
-
-  res->set_fowd_fun([=](Matrix *out) {
-    const Matrix& in = a->fval();
+static void CalcSoftMax(const Matrix& in, Matrix* out) {
     double max_val = in.get(0, 0);
     for_each_ella([&max_val](double i) { max_val = std::max(max_val, i); }, in);
     double sum = 0.0;
@@ -411,6 +405,24 @@ static Block *SoftMax(Block *a) {
        sum += o;
     }, in, *out);
     for_each_ella([sum](double& o) { o /= sum; }, *out);
+}
+
+// This implementation does not respect rows of matrix,
+//and calculates the softmax over entire matrix
+static Block *SoftMax(Block *a) {
+  auto *res = new Block({a}, a->fval().rows, a->fval().cols);
+
+  res->set_fowd_fun([=](Matrix *out) {
+      CalcSoftMax(a->fval(), out);
+//    const Matrix& in = a->fval();
+//    double max_val = in.get(0, 0);
+//    for_each_ella([&max_val](double i) { max_val = std::max(max_val, i); }, in);
+//    double sum = 0.0;
+//    for_each_ella([&sum, max_val](double i/*n*/, double& o/*ut*/) { 
+//       o = std::exp(i - max_val);
+//       sum += o;
+//    }, in, *out);
+//    for_each_ella([sum](double& o) { o /= sum; }, *out);
   });
  
   // TODO: bawd fun.
@@ -509,3 +521,69 @@ static Block *BCE(Block *a1, Block *a2) {
 
   return res;
 }
+
+// This one is tricky
+// See theory explanation here: 
+// https://shivammehta25.github.io/posts/deriving-categorical-cross-entropy-and-softmax/?utm_source=chatgpt.com
+//
+// TODO: softmax is calculated here seems redundant. Can be addressed by adding softmaxed block as argument?
+//
+static Block *SoftMaxCrossEntropy(Block *logits, Block *labels) {
+  auto *res = new Block({logits, labels}, 1, 1);
+
+  res->set_fowd_fun([=](Matrix *out) {
+    const Matrix &mtx_logits = logits->fval();
+    const Matrix &mtx_labels = labels->fval();
+
+    // Here we calculate the same softmax, but without storing each element.
+    // To calcualte cross entropy with logits we only need sum of exps.
+    // 
+    // 1. Calculate log of (sum exps of inputs), same as in SoftMax
+    double max_val = mtx_logits.get(0, 0);
+    for_each_ella([&max_val](double i) { max_val = std::max(max_val, i); }, mtx_logits);
+
+    double sum_exp = 0.0;
+    for_each_ella([&sum_exp, max_val](double logit) { 
+       sum_exp += std::exp(logit - max_val);
+    }, mtx_logits);
+
+    double log_sum_exp = max_val + std::log(sum_exp);
+
+    // 2. Scalar Product between labels and logits
+    double dot = 0.0;
+    for_each_ella([&dot](double logit, double label) { 
+       dot += logit * label;
+    }, mtx_logits, mtx_labels);
+
+    // Loss is the difference between log of sum exp and scalar product
+    out->set(0, 0, -dot + log_sum_exp);
+  });
+
+  logits->add_bawd_fun([logits, labels](Matrix *out) {
+
+    const Matrix &mtx_logits = logits->fval();
+    const Matrix &mtx_labels = labels->fval();
+
+    double max_val = mtx_logits.get(0, 0);
+    for_each_ella([&max_val](double i) { max_val = std::max(max_val, i); }, mtx_logits);
+
+    double sum_exp = 0.0;
+    for_each_ella([&sum_exp, max_val](double logit) { 
+       sum_exp += std::exp(logit - max_val);
+    }, mtx_logits);
+
+    for_each_ella(
+        [max_val, sum_exp](double z, double y, double &grads_back) {
+          double softmax_i = std::exp(z - max_val) / sum_exp;
+          grads_back = softmax_i - y;
+        },
+        mtx_logits, mtx_labels, *out);
+  });
+
+  // There is no bawd_fun for labels
+
+  return res;
+}
+
+
+

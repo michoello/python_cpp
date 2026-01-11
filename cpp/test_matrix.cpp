@@ -1005,6 +1005,55 @@ TEST_CASE(softmax) {
   // And the grads to go back are simply difference between true values and ds values.
 }
 
+TEST_CASE(softmax_cross_entropy) {
+  Mod3l m;
+  Block *dlogits = Data(&m, 2, 2);
+  Block *ds = SoftMax(dlogits);
+
+  // all equal
+  m.set_data(dlogits, {{3, 3}, {3, 3}});
+  CHECK(assertEqualVectors(ds->fval(), {
+                                           {0.25, 0.25},
+                                           {0.25, 0.25},
+                                       }));
+
+  Block *dlabels = Data(&m, 2, 2);
+  m.set_data(dlabels, {{0, 1}, {0, 0}});
+
+  Block *cre_logits = SoftMaxCrossEntropy(dlogits, dlabels);
+  CHECK(assertEqualVectors(cre_logits->fval(), { {1.386} }));
+
+
+  
+  // gradient of logits is difference between their softmaxed values 
+  // and corresponding labels
+  CHECK(assertEqualVectors(dlogits->bval(), {
+                                           {0.25, -0.75},
+                                           {0.25, 0.25},
+                                       }));
+
+  dlogits->apply_bval(0.1);
+  // Apply grads and check that loss dropped a bit
+  CHECK(assertEqualVectors(cre_logits->fval(), { {1.312} }));
+
+  // And softmax values are getting a bit closer to labels
+  CHECK(assertEqualVectors(ds->fval(), {
+																					 { 0.244, 0.269 },
+																					 { 0.244, 0.244 }
+                                       }));
+
+  // Let's run 99 more iterations, to ensure it still makes it better
+  for(size_t iter = 1; iter < 100; iter++) {
+    dlogits->apply_bval(0.1);
+  }
+  CHECK(assertEqualVectors(cre_logits->fval(), { {0.092} }));
+
+  CHECK(assertEqualVectors(ds->fval(), {
+																					 { 0.029, 0.912 },
+																					 { 0.029, 0.029 },
+                                       }));
+}
+
 /*
 TEST_CASE(tanh) {
    // TODO
