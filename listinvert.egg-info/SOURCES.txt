@@ -1,0 +1,9 @@
+README.md
+setup.py
+cpp/invert.cpp
+listinvert/__init__.py
+listinvert/bindings.cpp
+listinvert.egg-info/PKG-INFO
+listinvert.egg-info/SOURCES.txt
+listinvert.egg-info/dependency_links.txt
+listinvert.egg-info/top_level.txt
